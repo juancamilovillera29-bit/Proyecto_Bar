@@ -3,7 +3,7 @@
 // ============================================
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Sparkles, Banknote, CreditCard, CheckCircle, Wine } from 'lucide-react';
+import { ArrowLeft, Sparkles, Banknote, CreditCard } from 'lucide-react';
 import { CargandoSpinner } from '../../componentes/comunes/CargandoSpinner.jsx';
 import { obtenerMesaPorCodigo, actualizarEstadoMesa } from '../../servicios/mesas.js';
 import { obtenerCuentaActivaDeMesa, marcarCuentaPendientePago } from '../../servicios/cuentas.js';
@@ -47,7 +47,7 @@ export default function PaginaPago() {
     cargarDatos();
     const intervalo = setInterval(() => {
       cargarDatos(true);
-    }, 3000);
+    }, 2500);
     return () => clearInterval(intervalo);
   }, [codigoQr]);
 

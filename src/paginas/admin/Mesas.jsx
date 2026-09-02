@@ -13,6 +13,7 @@ import { obtenerCuentaActivaDeMesa, abrirCuenta, cerrarCuenta } from '../../serv
 import { registrarVenta } from '../../servicios/ventas.js';
 import { obtenerPedidos } from '../../servicios/pedidos.js';
 import { formatearPrecio } from '../../componentes/cliente/TarjetaProducto.jsx';
+import { descontarStockPorPedidos } from '../../servicios/inventario.js';
 
 export default function Mesas() {
   const [mesas, setMesas]           = useState([]);
@@ -160,6 +161,13 @@ export default function Mesas() {
         total: totalFinal,
         metodo_pago: metodoPago,
       });
+
+      // Descontar stock del inventario por cada producto consumido
+      await descontarStockPorPedidos(
+        pedidosMesa,
+        `Venta — ${mesaSeleccionada.nombre}`
+      );
+
       await cerrarCuenta(cuenta.id);
       await actualizarEstadoMesa(mesaSeleccionada.id, 'disponible');
       await cargarDatos();
