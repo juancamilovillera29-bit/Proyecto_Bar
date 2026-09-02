@@ -64,11 +64,14 @@ export async function crearPedido(datos) {
 
   // Actualizar mesa a ocupada automáticamente
   if (datosPedido.mesa_id) {
-    await supabase
-      .from('mesas')
-      .update({ estado: 'ocupada', actualizado_en: new Date().toISOString() })
-      .eq('id', datosPedido.mesa_id)
-      .catch(() => null);
+    try {
+      await supabase
+        .from('mesas')
+        .update({ estado: 'ocupada', actualizado_en: new Date().toISOString() })
+        .eq('id', datosPedido.mesa_id);
+    } catch (e) {
+      console.warn('No se pudo actualizar estado de la mesa:', e);
+    }
   }
 
   // Actualizar total de cuenta
