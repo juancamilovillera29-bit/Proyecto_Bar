@@ -29,7 +29,15 @@ export function ProveedorPedidos({ children }) {
   useEffect(() => {
     cargarPedidos();
 
-    if (!supabaseConfigurado) return;
+    // Polling de respaldo cada 3.5 segundos para garantizar que los pedidos
+    // lleguen al panel administrativo y KDS inmediatamente
+    const intervalo = setInterval(() => {
+      cargarPedidos();
+    }, 3500);
+
+    if (!supabaseConfigurado) {
+      return () => clearInterval(intervalo);
+    }
 
     // Suscripción Realtime a cambios en pedidos
     const canal = supabase
@@ -39,7 +47,10 @@ export function ProveedorPedidos({ children }) {
       })
       .subscribe();
 
-    return () => supabase.removeChannel(canal);
+    return () => {
+      clearInterval(intervalo);
+      supabase.removeChannel(canal);
+    };
   }, [cargarPedidos]);
 
   async function cambiarEstadoPedido(pedidoId, nuevoEstado) {

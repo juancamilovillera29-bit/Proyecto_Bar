@@ -1,9 +1,6 @@
-// ============================================
-// BORONDO Bar POS — Router principal
-// Tres interfaces: Admin | KDS | Cliente
-// ============================================
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ProveedorAuth } from './contextos/ContextoAuth.jsx';
+import { ProveedorCarrito } from './contextos/ContextoCarrito.jsx';
 
 // Páginas de autenticación
 import Login from './paginas/Login.jsx';
@@ -32,37 +29,40 @@ export default function App() {
   return (
     <BrowserRouter>
       <ProveedorAuth>
-        <Routes>
-          {/* ── Autenticación ── */}
-          <Route path="/login" element={<Login />} />
+        <ProveedorCarrito>
+          <Routes>
+            {/* ── Autenticación ── */}
+            <Route path="/login" element={<Login />} />
 
-          {/* ── Panel Administrativo (requiere auth) ── */}
-          <Route path="/admin" element={<LayoutAdmin />}>
-            <Route index element={<Navigate to="/admin/dashboard" replace />} />
-            <Route path="dashboard"    element={<Dashboard />} />
-            <Route path="productos"    element={<Productos />} />
-            <Route path="inventario"   element={<Inventario />} />
-            <Route path="mesas"        element={<Mesas />} />
-            <Route path="kds"          element={<KDS />} />
-            <Route path="ventas"       element={<Ventas />} />
-            <Route path="cierres"      element={<Cierres />} />
-            <Route path="configuracion" element={<Configuracion />} />
-          </Route>
+            {/* ── Panel Administrativo (requiere auth) ── */}
+            <Route path="/admin" element={<LayoutAdmin />}>
+              <Route index element={<Navigate to="/admin/dashboard" replace />} />
+              <Route path="dashboard"    element={<Dashboard />} />
+              <Route path="productos"    element={<Productos />} />
+              <Route path="inventario"   element={<Inventario />} />
+              <Route path="mesas"        element={<Mesas />} />
+              <Route path="kds"          element={<KDS />} />
+              <Route path="ventas"       element={<Ventas />} />
+              <Route path="cierres"      element={<Cierres />} />
+              <Route path="configuracion" element={<Configuracion />} />
+            </Route>
 
-          {/* ── KDS Standalone (cocina) ── */}
-          <Route path="/kds" element={<PantallaKDS />} />
+            {/* ── KDS Standalone (cocina) ── */}
+            <Route path="/kds" element={<PantallaKDS />} />
 
-          {/* ── Menú del Cliente (público, acceso por QR) ── */}
-          <Route path="/mesa/:codigoQr"              element={<MenuCliente />} />
-          <Route path="/mesa/:codigoQr/seguimiento"  element={<SeguimientoPedido />} />
-          <Route path="/mesa/:codigoQr/confirmar"    element={<ConfirmarPedido />} />
-          <Route path="/mesa/:codigoQr/pago"         element={<PaginaPago />} />
+            {/* ── Menú del Cliente (público, acceso por QR) ── */}
+            <Route path="/mesa/:codigoQr"              element={<MenuCliente />} />
+            <Route path="/mesa/:codigoQr/seguimiento"  element={<SeguimientoPedido />} />
+            <Route path="/mesa/:codigoQr/confirmar"    element={<ConfirmarPedido />} />
+            <Route path="/mesa/:codigoQr/pago"         element={<PaginaPago />} />
 
-          {/* ── Redireccionamiento raíz ── */}
-          <Route path="/"   element={<Navigate to="/admin/dashboard" replace />} />
-          <Route path="*"   element={<Navigate to="/admin/dashboard" replace />} />
-        </Routes>
+            {/* ── Redireccionamiento raíz ── */}
+            <Route path="/"   element={<Navigate to="/admin/dashboard" replace />} />
+            <Route path="*"   element={<Navigate to="/admin/dashboard" replace />} />
+          </Routes>
+        </ProveedorCarrito>
       </ProveedorAuth>
     </BrowserRouter>
   );
 }
+

@@ -13,7 +13,7 @@ import { obtenerProductos } from '../../servicios/productos.js';
 import { obtenerMesaPorCodigo } from '../../servicios/mesas.js';
 import { obtenerCuentaActivaDeMesa, abrirCuenta } from '../../servicios/cuentas.js';
 
-function ContenidoMenu() {
+export default function MenuCliente() {
   const { codigoQr } = useParams();
   const { establecerMesa } = useCarrito();
   const [mesa, setMesa]         = useState(null);
@@ -150,10 +150,3 @@ function ContenidoMenu() {
   );
 }
 
-export default function MenuCliente() {
-  return (
-    <ProveedorCarrito>
-      <ContenidoMenu />
-    </ProveedorCarrito>
-  );
-}

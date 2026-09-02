@@ -1,39 +1,90 @@
 // ============================================
 // Página: ConfirmarPedido — Confirmar y enviar
 // ============================================
-import { useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Wine, CheckCircle, ShoppingBag } from 'lucide-react';
-import { ProveedorCarrito, useCarrito } from '../../contextos/ContextoCarrito.jsx';
+import { useState, useEffect } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { ArrowLeft, Wine, CheckCircle, ShoppingBag, AlertCircle } from 'lucide-react';
+import { useCarrito } from '../../contextos/ContextoCarrito.jsx';
 import { crearPedido } from '../../servicios/pedidos.js';
+import { obtenerMesaPorCodigo } from '../../servicios/mesas.js';
+import { obtenerCuentaActivaDeMesa, abrirCuenta } from '../../servicios/cuentas.js';
 
-function ContenidoConfirmar() {
+export default function ConfirmarPedido() {
   const { codigoQr } = useParams();
-  const navegar = useNavigate();
-  const { articulos, subtotal, mesaId, cuentaId, vaciarCarrito, carritoVacio } = useCarrito();
+  const { articulos, subtotal, mesaId, cuentaId, vaciarCarrito, carritoVacio, establecerMesa } = useCarrito();
   const [observaciones, setObservaciones] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [pedidoEnviado, setPedidoEnviado] = useState(false);
+  const [errorEnvio, setErrorEnvio] = useState(null);
+  const [mesaActual, setMesaActual] = useState(null);
+
+  // Asegurar que mesaId y cuentaId estén disponibles
+  useEffect(() => {
+    async function asegurarMesaYCuenta() {
+      try {
+        const mesaDatos = await obtenerMesaPorCodigo(codigoQr);
+        if (mesaDatos) {
+          setMesaActual(mesaDatos);
+          let cuenta = await obtenerCuentaActivaDeMesa(mesaDatos.id);
+          if (!cuenta) {
+            cuenta = await abrirCuenta(mesaDatos.id);
+          }
+          establecerMesa(mesaDatos.id, cuenta?.id || null);
+        }
+      } catch (e) {
+        console.error('Error al resolver mesa en confirmación:', e);
+      }
+    }
+    asegurarMesaYCuenta();
+  }, [codigoQr]);
 
   async function manejarConfirmar(e) {
     e.preventDefault();
-    if (carritoVacio || !mesaId) return;
+    if (carritoVacio) {
+      setErrorEnvio('El carrito está vacío. Agrega productos antes de enviar.');
+      return;
+    }
+
     setEnviando(true);
+    setErrorEnvio(null);
+
     try {
+      // Si por alguna razón mesaId no está en el estado, buscarla por código
+      let idMesa = mesaId;
+      let idCuenta = cuentaId;
+
+      if (!idMesa) {
+        const mesaDatos = await obtenerMesaPorCodigo(codigoQr);
+        if (!mesaDatos) {
+          throw new Error('No se pudo identificar la mesa. Por favor reescanea el código QR.');
+        }
+        idMesa = mesaDatos.id;
+        let cuenta = await obtenerCuentaActivaDeMesa(idMesa);
+        if (!cuenta) {
+          cuenta = await abrirCuenta(idMesa);
+        }
+        idCuenta = cuenta?.id || null;
+      }
+
       const detalles = articulos.map(a => ({
         producto_id: a.producto.id,
         cantidad: a.cantidad,
         precio_unitario: a.producto.precio_venta,
       }));
+
       await crearPedido({
-        mesa_id: mesaId,
-        cuenta_id: cuentaId,
+        mesa_id: idMesa,
+        cuenta_id: idCuenta,
         estado: 'recibido',
         observaciones: observaciones.trim() || null,
         detalles,
       });
+
       vaciarCarrito();
       setPedidoEnviado(true);
+    } catch (err) {
+      console.error('Error al enviar pedido:', err);
+      setErrorEnvio(err?.message || 'Hubo un problema al enviar tu pedido. Por favor intenta nuevamente.');
     } finally {
       setEnviando(false);
     }
@@ -56,7 +107,7 @@ function ContenidoConfirmar() {
             ¡Pedido enviado!
           </h2>
           <p style={{ color: 'var(--texto-terciario)', marginBottom: 30, lineHeight: 1.6 }}>
-            Tu pedido fue enviado a la cocina. Puedes seguir el estado en tiempo real.
+            Tu pedido fue enviado exitosamente a la barra/cocina. Puedes seguir el estado en tiempo real.
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <Link
@@ -89,12 +140,29 @@ function ContenidoConfirmar() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Wine size={18} color="var(--dorado-puro)" />
           <span style={{ fontFamily: 'var(--fuente-titular)', fontWeight: 700, color: 'var(--dorado-puro)' }}>
-            Confirmar pedido
+            Confirmar pedido {mesaActual ? `— ${mesaActual.nombre}` : ''}
           </span>
         </div>
       </div>
 
       <div style={{ padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+        {errorEnvio && (
+          <div style={{
+            background: 'rgba(239, 68, 68, 0.15)',
+            border: '1px solid #ef4444',
+            borderRadius: 'var(--radio-md)',
+            padding: '12px 16px',
+            color: '#fca5a5',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            fontSize: 'var(--texto-sm)',
+          }}>
+            <AlertCircle size={18} color="#ef4444" />
+            <span>{errorEnvio}</span>
+          </div>
+        )}
+
         {carritoVacio ? (
           <div className="estado-vacio">
             <ShoppingBag size={48} className="estado-vacio-icono" />
@@ -135,7 +203,7 @@ function ContenidoConfirmar() {
               <textarea
                 value={observaciones}
                 onChange={e => setObservaciones(e.target.value)}
-                placeholder="Ej: Sin chile, extra limón, alergia a mariscos..."
+                placeholder="Ej: Sin hielo, extra limón, servir frío..."
                 rows={3}
               />
             </div>
@@ -159,10 +227,3 @@ function ContenidoConfirmar() {
   );
 }
 
-export default function ConfirmarPedido() {
-  return (
-    <ProveedorCarrito>
-      <ContenidoConfirmar />
-    </ProveedorCarrito>
-  );
-}

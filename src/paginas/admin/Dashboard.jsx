@@ -28,8 +28,9 @@ export default function Dashboard() {
   const [cargando, setCargando]         = useState(true);
 
   useEffect(() => {
-    async function cargarDatos() {
+    async function cargarDatos(esRecarga = false) {
       try {
+        if (!esRecarga) setCargando(true);
         if (!supabaseConfigurado) {
           // Usar datos mock
           setEstadisticas(estadisticasMock);
@@ -54,10 +55,16 @@ export default function Dashboard() {
           setPedidosRecientes(pedidos.slice(0, 5));
         }
       } finally {
-        setCargando(false);
+        if (!esRecarga) setCargando(false);
       }
     }
     cargarDatos();
+
+    const intervalo = setInterval(() => {
+      cargarDatos(true);
+    }, 5000);
+
+    return () => clearInterval(intervalo);
   }, []);
 
   if (cargando) return <CargandoSpinner mensaje="Cargando dashboard..." tamano="grande" />;

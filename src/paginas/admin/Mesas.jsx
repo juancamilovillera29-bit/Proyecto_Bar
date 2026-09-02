@@ -39,10 +39,16 @@ export default function Mesas() {
   const [editandoBaseUrl, setEditandoBaseUrl] = useState(false);
   const qrRef = useRef(null);
 
-  useEffect(() => { cargarDatos(); }, []);
+  useEffect(() => {
+    cargarDatos();
+    const intervalo = setInterval(() => {
+      cargarDatos(true);
+    }, 4000);
+    return () => clearInterval(intervalo);
+  }, []);
 
-  async function cargarDatos() {
-    setCargando(true);
+  async function cargarDatos(esRecarga = false) {
+    if (!esRecarga) setCargando(true);
     const mesasDatos = await obtenerMesas();
     setMesas(mesasDatos);
     const cuentasMap = {};
@@ -51,7 +57,7 @@ export default function Mesas() {
       if (cuenta) cuentasMap[mesa.id] = cuenta;
     }
     setCuentas(cuentasMap);
-    setCargando(false);
+    if (!esRecarga) setCargando(false);
   }
 
   async function manejarAbrirMesa(mesa) {

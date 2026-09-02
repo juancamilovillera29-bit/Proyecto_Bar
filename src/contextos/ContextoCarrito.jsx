@@ -1,23 +1,41 @@
 // ============================================
 // Contexto: Carrito del cliente
-// Gestiona el carrito de compras por mesa
+// Gestiona el carrito de compras por mesa con persistencia
 // ============================================
-import { createContext, useContext, useReducer, useCallback } from 'react';
+import { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
 
 const ContextoCarrito = createContext(null);
 
-const estadoInicial = {
-  articulos: [],   // [{ producto, cantidad }]
-  mesaId: null,
-  cuentaId: null,
-};
+const STORAGE_KEY = 'borondo_carrito_datos';
+
+function obtenerEstadoInicial() {
+  try {
+    const guardado = localStorage.getItem(STORAGE_KEY);
+    if (guardado) {
+      const parsed = JSON.parse(guardado);
+      return {
+        articulos: Array.isArray(parsed.articulos) ? parsed.articulos : [],
+        mesaId: parsed.mesaId || null,
+        cuentaId: parsed.cuentaId || null,
+      };
+    }
+  } catch (e) {
+    console.warn('No se pudo leer el carrito de localStorage:', e);
+  }
+  return {
+    articulos: [],
+    mesaId: null,
+    cuentaId: null,
+  };
+}
 
 function reductorCarrito(estado, accion) {
+  let nuevoEstado = estado;
   switch (accion.tipo) {
     case 'AGREGAR_ARTICULO': {
       const existe = estado.articulos.find(a => a.producto.id === accion.producto.id);
       if (existe) {
-        return {
+        nuevoEstado = {
           ...estado,
           articulos: estado.articulos.map(a =>
             a.producto.id === accion.producto.id
@@ -25,13 +43,15 @@ function reductorCarrito(estado, accion) {
               : a
           ),
         };
+      } else {
+        nuevoEstado = { ...estado, articulos: [...estado.articulos, { producto: accion.producto, cantidad: 1 }] };
       }
-      return { ...estado, articulos: [...estado.articulos, { producto: accion.producto, cantidad: 1 }] };
+      break;
     }
     case 'QUITAR_ARTICULO': {
       const existe = estado.articulos.find(a => a.producto.id === accion.productoId);
       if (existe && existe.cantidad > 1) {
-        return {
+        nuevoEstado = {
           ...estado,
           articulos: estado.articulos.map(a =>
             a.producto.id === accion.productoId
@@ -39,22 +59,40 @@ function reductorCarrito(estado, accion) {
               : a
           ),
         };
+      } else {
+        nuevoEstado = { ...estado, articulos: estado.articulos.filter(a => a.producto.id !== accion.productoId) };
       }
-      return { ...estado, articulos: estado.articulos.filter(a => a.producto.id !== accion.productoId) };
+      break;
     }
     case 'ELIMINAR_ARTICULO':
-      return { ...estado, articulos: estado.articulos.filter(a => a.producto.id !== accion.productoId) };
+      nuevoEstado = { ...estado, articulos: estado.articulos.filter(a => a.producto.id !== accion.productoId) };
+      break;
     case 'VACIAR_CARRITO':
-      return { ...estado, articulos: [] };
+      nuevoEstado = { ...estado, articulos: [] };
+      break;
     case 'ESTABLECER_MESA':
-      return { ...estado, mesaId: accion.mesaId, cuentaId: accion.cuentaId };
+      nuevoEstado = { ...estado, mesaId: accion.mesaId, cuentaId: accion.cuentaId };
+      break;
     default:
       return estado;
   }
+
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(nuevoEstado));
+  } catch (e) {
+    console.warn('No se pudo guardar el carrito:', e);
+  }
+  return nuevoEstado;
 }
 
 export function ProveedorCarrito({ children }) {
-  const [estado, despachar] = useReducer(reductorCarrito, estadoInicial);
+  const [estado, despachar] = useReducer(reductorCarrito, undefined, obtenerEstadoInicial);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(estado));
+    } catch (e) {}
+  }, [estado]);
 
   const agregarArticulo = useCallback((producto) => {
     despachar({ tipo: 'AGREGAR_ARTICULO', producto });
@@ -107,3 +145,4 @@ export function useCarrito() {
 }
 
 export default ContextoCarrito;
+

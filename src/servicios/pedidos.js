@@ -57,15 +57,39 @@ export async function crearPedido(datos) {
   // Crear detalles
   const detallesConId = detalles.map(d => ({ ...d, pedido_id: pedido.id }));
   const { error: errorDetalles } = await supabase.from('detalles_pedido').insert(detallesConId);
-  if (errorDetalles) throw errorDetalles;
+  if (errorDetalles) {
+    console.error('Error al insertar detalles de pedido:', errorDetalles);
+    throw errorDetalles;
+  }
+
+  // Actualizar mesa a ocupada automáticamente
+  if (datosPedido.mesa_id) {
+    await supabase
+      .from('mesas')
+      .update({ estado: 'ocupada', actualizado_en: new Date().toISOString() })
+      .eq('id', datosPedido.mesa_id)
+      .catch(() => null);
+  }
 
   // Actualizar total de cuenta
-  const totalPedido = detalles.reduce((s, d) => s + d.precio_unitario * d.cantidad, 0);
+  const totalPedido = detalles.reduce((s, d) => s + (Number(d.precio_unitario) || 0) * (Number(d.cantidad) || 1), 0);
   if (datosPedido.cuenta_id) {
-    await supabase.rpc('incrementar_total_cuenta', {
-      p_cuenta_id: datosPedido.cuenta_id,
-      p_monto: totalPedido,
-    }).catch(() => null); // Fallback: ignorar si el RPC no existe
+    try {
+      const { data: cData } = await supabase
+        .from('cuentas')
+        .select('total_acumulado')
+        .eq('id', datosPedido.cuenta_id)
+        .single();
+      if (cData) {
+        const nuevoTotal = (Number(cData.total_acumulado) || 0) + totalPedido;
+        await supabase
+          .from('cuentas')
+          .update({ total_acumulado: nuevoTotal, actualizado_en: new Date().toISOString() })
+          .eq('id', datosPedido.cuenta_id);
+      }
+    } catch (e) {
+      console.warn('No se pudo actualizar total_acumulado de cuenta:', e);
+    }
   }
 
   return pedido;
