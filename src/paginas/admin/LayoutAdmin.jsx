@@ -3,6 +3,7 @@
 // ============================================
 import { Outlet, Navigate } from 'react-router-dom';
 import { BarraLateral } from '../../componentes/admin/BarraLateral.jsx';
+import { BannerNotificaciones } from '../../componentes/admin/BannerNotificaciones.jsx';
 import { useAuth } from '../../contextos/ContextoAuth.jsx';
 import { CargandoSpinner } from '../../componentes/comunes/CargandoSpinner.jsx';
 
@@ -24,6 +25,9 @@ export default function LayoutAdmin() {
       }}>
         <Outlet />
       </main>
+      {/* Notificaciones flotantes — visibles en todo el panel admin */}
+      <BannerNotificaciones />
     </div>
   );
 }
+

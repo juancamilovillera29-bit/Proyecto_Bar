@@ -1,12 +1,13 @@
 // ============================================
 // Página: PantallaKDS — Kitchen Display System
-// Pantalla de cocina en tiempo real
+// Pantalla de cocina en tiempo real con alertas
 // ============================================
-import { useState } from 'react';
-import { ChefHat, RefreshCw, Wine, Monitor } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { ChefHat, RefreshCw, Wine, Monitor, Bell } from 'lucide-react';
 import { TarjetaPedidoKDS } from '../../componentes/kds/TarjetaPedidoKDS.jsx';
 import { CargandoSpinner } from '../../componentes/comunes/CargandoSpinner.jsx';
 import { ProveedorPedidos, usePedidos } from '../../contextos/ContextoPedidos.jsx';
+import { sonarNuevoPedido } from '../../servicios/notificaciones.js';
 
 const FILTROS_ESTADO = [
   { valor: 'activos',        etiqueta: 'Activos',          color: 'var(--texto-primario)' },
@@ -18,6 +19,42 @@ const FILTROS_ESTADO = [
 function ContenidoKDS({ modoAdmin }) {
   const { pedidosActivos, pedidosPendientes, pedidosEnCocina, pedidosListos, cargando, cargarPedidos, cambiarEstadoPedido } = usePedidos();
   const [filtro, setFiltro] = useState('activos');
+  const [flashNuevoPedido, setFlashNuevoPedido] = useState(false);
+  const pedidosKnownRef = useRef(new Set());
+  const interactuoRef = useRef(false);
+
+  // Marcar interacción del usuario para desbloquear audio
+  useEffect(() => {
+    function marcarInteraccion() { interactuoRef.current = true; }
+    window.addEventListener('click', marcarInteraccion, { once: true });
+    window.addEventListener('keydown', marcarInteraccion, { once: true });
+    return () => {
+      window.removeEventListener('click', marcarInteraccion);
+      window.removeEventListener('keydown', marcarInteraccion);
+    };
+  }, []);
+
+  // Detectar pedidos nuevos y disparar alerta
+  useEffect(() => {
+    if (!pedidosActivos || pedidosActivos.length === 0) return;
+
+    let hayNuevo = false;
+    for (const p of pedidosActivos) {
+      if (!pedidosKnownRef.current.has(p.id)) {
+        pedidosKnownRef.current.add(p.id);
+        if (pedidosKnownRef.current.size > 1) {
+          // Solo disparar si ya teníamos pedidos cargados antes (no en la carga inicial)
+          hayNuevo = true;
+        }
+      }
+    }
+
+    if (hayNuevo && interactuoRef.current) {
+      sonarNuevoPedido();
+      setFlashNuevoPedido(true);
+      setTimeout(() => setFlashNuevoPedido(false), 3000);
+    }
+  }, [pedidosActivos]);
 
   const pedidosMostrados = {
     activos:        pedidosActivos,
@@ -35,6 +72,38 @@ function ContenidoKDS({ modoAdmin }) {
       display: 'flex',
       flexDirection: 'column',
     }}>
+      {/* Banner de alerta de nuevo pedido */}
+      {flashNuevoPedido && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0,
+          zIndex: 9000,
+          background: 'linear-gradient(90deg, #e5a93c, #f5c842, #e5a93c)',
+          padding: '10px 24px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 10,
+          animation: 'flashBanner 0.4s ease',
+          boxShadow: '0 4px 20px rgba(229,169,60,0.6)',
+        }}>
+          <Bell size={20} color="#121214" />
+          <span style={{ fontWeight: 800, color: '#121214', fontSize: '1rem', letterSpacing: '0.05em' }}>
+            🆕 ¡NUEVO PEDIDO RECIBIDO!
+          </span>
+          <Bell size={20} color="#121214" />
+        </div>
+      )}
+
+      <style>{`
+        @keyframes flashBanner {
+          0%   { transform: translateY(-100%); opacity: 0; }
+          30%  { transform: translateY(0);     opacity: 1; }
+          70%  { transform: translateY(0);     opacity: 1; }
+          100% { transform: translateY(0);     opacity: 1; }
+        }
+      `}</style>
+
       {/* Encabezado KDS */}
       <div style={{
         background: 'var(--negro-base)',
@@ -44,6 +113,8 @@ function ContenidoKDS({ modoAdmin }) {
         justifyContent: 'space-between',
         alignItems: 'center',
         flexShrink: 0,
+        marginTop: flashNuevoPedido ? 44 : 0,
+        transition: 'margin-top 0.3s ease',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{
@@ -172,3 +243,4 @@ export default function PantallaKDS({ modoAdmin = false }) {
     </ProveedorPedidos>
   );
 }
+
