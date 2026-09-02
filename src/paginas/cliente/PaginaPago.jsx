@@ -1,17 +1,17 @@
 // ============================================
-// Página: PaginaPago — Solicitar cuenta y pago
+// Página: PaginaPago — Solicitar cuenta y pago (Mockup UI)
 // ============================================
 import { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Wine, CheckCircle2, Banknote, CreditCard, Sparkles } from 'lucide-react';
+import { useParams, Link } from 'react-router-dom';
+import { ArrowLeft, Sparkles, Banknote, CreditCard, CheckCircle, Wine } from 'lucide-react';
 import { CargandoSpinner } from '../../componentes/comunes/CargandoSpinner.jsx';
 import { obtenerMesaPorCodigo, actualizarEstadoMesa } from '../../servicios/mesas.js';
 import { obtenerCuentaActivaDeMesa, marcarCuentaPendientePago } from '../../servicios/cuentas.js';
 import { obtenerPedidos } from '../../servicios/pedidos.js';
+import { formatearPrecio } from '../../componentes/cliente/TarjetaProducto.jsx';
 
 export default function PaginaPago() {
   const { codigoQr } = useParams();
-  const navegar = useNavigate();
   const [mesa, setMesa]             = useState(null);
   const [cuenta, setCuenta]         = useState(null);
   const [pedidos, setPedidos]       = useState([]);
@@ -20,70 +20,110 @@ export default function PaginaPago() {
   const [solicitado, setSolicitado] = useState(false);
   const [procesando, setProcesando] = useState(false);
 
-  useEffect(() => {
-    async function cargar() {
+  async function cargarDatos(esRecarga = false) {
+    try {
+      if (!esRecarga) setCargando(true);
       const mesaDatos = await obtenerMesaPorCodigo(codigoQr);
-      if (!mesaDatos) { setCargando(false); return; }
+      if (!mesaDatos) {
+        if (!esRecarga) setCargando(false);
+        return;
+      }
       setMesa(mesaDatos);
 
-      const [cuentaDatos, pedidosDatos] = await Promise.all([
-        obtenerCuentaActivaDeMesa(mesaDatos.id),
-        obtenerPedidos({ mesa_id: mesaDatos.id }),
-      ]);
+      const cuentaDatos = await obtenerCuentaActivaDeMesa(mesaDatos.id);
       setCuenta(cuentaDatos);
-      setPedidos(pedidosDatos.filter(p => p.estado !== 'cancelado'));
-      setCargando(false);
+
+      const filtros = cuentaDatos ? { cuenta_id: cuentaDatos.id } : { mesa_id: mesaDatos.id };
+      const pedidosDatos = await obtenerPedidos(filtros);
+      setPedidos((pedidosDatos || []).filter(p => p.estado !== 'cancelado'));
+    } catch (e) {
+      console.warn('Error al cargar datos de pago:', e);
+    } finally {
+      if (!esRecarga) setCargando(false);
     }
-    cargar();
+  }
+
+  useEffect(() => {
+    cargarDatos();
+    const intervalo = setInterval(() => {
+      cargarDatos(true);
+    }, 3000);
+    return () => clearInterval(intervalo);
   }, [codigoQr]);
 
   async function manejarSolicitarCuenta() {
-    if (!cuenta || !mesa) return;
+    if (!mesa) return;
     setProcesando(true);
     try {
-      await marcarCuentaPendientePago(cuenta.id);
+      if (cuenta?.id) {
+        await marcarCuentaPendientePago(cuenta.id);
+      }
       await actualizarEstadoMesa(mesa.id, 'pendiente_pago');
       setSolicitado(true);
+    } catch (e) {
+      console.error('Error al solicitar cuenta:', e);
     } finally {
       setProcesando(false);
     }
   }
 
-  if (cargando) return <CargandoSpinner mensaje="Cargando cuenta..." />;
+  if (cargando) return <CargandoSpinner mensaje="Cargando cuenta final..." tamano="grande" />;
+
+  // Calcular total sumando todos los pedidos
+  const totalCalculado = pedidos.reduce((acc, p) => {
+    const sub = (p.detalles || []).reduce((s, d) => s + (Number(d.precio_unitario) || 0) * (Number(d.cantidad) || 1), 0);
+    return acc + sub;
+  }, 0);
+  const totalAPagar = Math.max(Number(cuenta?.total || 0), totalCalculado);
 
   if (solicitado) {
     return (
-      <div style={{ minHeight: '100vh', background: 'var(--negro-base)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div style={{ minHeight: '100vh', background: '#121214', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, color: '#ffffff' }}>
         <div style={{ textAlign: 'center', maxWidth: 360, animation: 'fadeIn 400ms ease both' }}>
           <div style={{
             width: 80, height: 80, borderRadius: '50%',
-            background: 'var(--dorado-muy-suave)', border: '2px solid var(--dorado-puro)',
+            background: 'rgba(229, 169, 60, 0.15)', border: '2px solid #e5a93c',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             margin: '0 auto 20px',
             animation: 'brillar 2s ease infinite',
           }}>
-            <Sparkles size={40} color="var(--dorado-puro)" />
+            <Sparkles size={40} color="#e5a93c" />
           </div>
-          <h2 style={{ fontFamily: 'var(--fuente-titular)', fontSize: 'var(--texto-3xl)', color: 'var(--texto-primario)', marginBottom: 10 }}>
+          <h2 style={{ fontFamily: 'var(--fuente-titular, sans-serif)', fontSize: '1.8rem', color: '#ffffff', marginBottom: 10 }}>
             ¡Cuenta solicitada!
           </h2>
-          <p style={{ color: 'var(--texto-terciario)', marginBottom: 20, lineHeight: 1.6 }}>
-            Un mesero se acercará a la <strong>Mesa {mesa?.numero}</strong> con el cobro en <strong>{metodo === 'efectivo' ? 'Efectivo' : 'Transferencia'}</strong>.
+          <p style={{ color: '#8f9098', marginBottom: 20, lineHeight: 1.6, fontSize: '0.95rem' }}>
+            Un mesero se acercará a la <strong>{mesa?.nombre}</strong> con tu cuenta para cobrar en <strong>{metodo === 'efectivo' ? 'Efectivo' : 'Transferencia'}</strong>.
           </p>
-          {metodo === 'transferencia' && (
-            <div style={{ background: 'var(--superficie-2)', border: '1px solid var(--borde-normal)', borderRadius: 'var(--radio-lg)', padding: 16, marginBottom: 24, textAlign: 'left' }}>
-              <div style={{ fontSize: 'var(--texto-xs)', color: 'var(--dorado-puro)', fontWeight: 700, marginBottom: 4 }}>DATOS DE TRANSFERENCIA</div>
-              <div style={{ fontSize: 'var(--texto-sm)', color: 'var(--texto-primario)' }}>Banco: <strong>BBVA</strong></div>
-              <div style={{ fontSize: 'var(--texto-sm)', color: 'var(--texto-primario)' }}>CLABE: <strong>012180012345678901</strong></div>
-              <div style={{ fontSize: 'var(--texto-sm)', color: 'var(--texto-primario)' }}>Beneficiario: <strong>BORONDO Bar S.A.</strong></div>
+
+          <div style={{
+            background: '#19191d',
+            border: '1px solid #27272e',
+            borderRadius: '16px',
+            padding: '16px',
+            marginBottom: '24px',
+            textAlign: 'center',
+          }}>
+            <div style={{ fontSize: '0.8rem', color: '#8f9098', textTransform: 'uppercase', fontWeight: 700 }}>TOTAL A PAGAR</div>
+            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#e5a93c', marginTop: '4px', fontFamily: 'var(--fuente-titular, sans-serif)' }}>
+              {formatearPrecio(totalAPagar)}
             </div>
-          )}
+          </div>
+
           <Link
             to={`/mesa/${codigoQr}`}
-            className="btn btn-primario btn-bloque"
-            style={{ textDecoration: 'none' }}
+            style={{
+              display: 'block',
+              background: '#e5a93c',
+              color: '#121214',
+              padding: '14px',
+              borderRadius: '16px',
+              fontWeight: 800,
+              textDecoration: 'none',
+              fontSize: '1rem',
+            }}
           >
-            Volver al inicio
+            Volver al menú
           </Link>
         </div>
       </div>
@@ -91,94 +131,174 @@ export default function PaginaPago() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--negro-base)', paddingBottom: 40 }}>
+    <div style={{ minHeight: '100vh', background: '#121214', paddingBottom: 60, color: '#ffffff' }}>
       {/* Encabezado */}
-      <div style={{ background: 'var(--negro-profundo)', borderBottom: '1px solid var(--borde-sutil)', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
-        <Link to={`/mesa/${codigoQr}/seguimiento`} style={{ color: 'var(--texto-terciario)', display: 'flex' }}>
-          <ArrowLeft size={20} />
-        </Link>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Wine size={18} color="var(--dorado-puro)" />
-          <span style={{ fontFamily: 'var(--fuente-titular)', fontWeight: 700, color: 'var(--dorado-puro)' }}>
-            Cuenta final — Mesa {mesa?.numero}
-          </span>
+      <div style={{
+        padding: '18px 20px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        borderBottom: '1px solid rgba(255,255,255,0.05)',
+        position: 'sticky',
+        top: 0,
+        background: '#121214',
+        zIndex: 100,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <Link
+            to={`/mesa/${codigoQr}/seguimiento`}
+            style={{
+              width: '36px',
+              height: '36px',
+              borderRadius: '50%',
+              background: '#19191d',
+              border: '1px solid #282830',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#d49a37',
+              textDecoration: 'none',
+            }}
+          >
+            <ArrowLeft size={16} />
+          </Link>
+          <div>
+            <div style={{ fontFamily: 'var(--fuente-titular, sans-serif)', fontWeight: 800, fontSize: '1.1rem', color: '#e5a93c' }}>
+              Pagar Cuenta
+            </div>
+            <div style={{ fontSize: '0.78rem', color: '#8f9098' }}>{mesa?.nombre || 'Mesa'}</div>
+          </div>
         </div>
       </div>
 
-      <div style={{ padding: '24px 20px', display: 'flex', flexDirection: 'column', gap: 20 }}>
-        {/* Resumen de consumo acumulado */}
-        <div className="tarjeta">
-          <h3 style={{ fontFamily: 'var(--fuente-titular)', fontSize: 'var(--texto-lg)', color: 'var(--dorado-puro)', marginBottom: 14 }}>
-            Detalle de consumo
+      <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        {/* Resumen de consumo */}
+        <div style={{
+          background: '#19191d',
+          borderRadius: '18px',
+          padding: '20px',
+          border: '1px solid #27272e',
+        }}>
+          <h3 style={{
+            margin: '0 0 16px',
+            fontSize: '0.85rem',
+            fontWeight: 800,
+            color: '#8f9098',
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+          }}>
+            DETALLE DE CONSUMO
           </h3>
+
           {pedidos.map((ped, idx) => (
-            <div key={ped.id} style={{ marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid var(--borde-sutil)' }}>
-              <div style={{ fontSize: 'var(--texto-xs)', color: 'var(--texto-muted)', marginBottom: 6 }}>
-                Pedido #{idx + 1}
+            <div key={ped.id} style={{ marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid #282832' }}>
+              <div style={{ fontSize: '0.78rem', color: '#8f9098', marginBottom: 6, fontWeight: 700 }}>
+                Pedido #{pedidos.length - idx}
               </div>
               {(ped.detalles || []).map(d => (
-                <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 'var(--texto-sm)', padding: '3px 0' }}>
+                <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem', padding: '3px 0' }}>
                   <span>{d.producto?.nombre || 'Producto'} ×{d.cantidad}</span>
-                  <span style={{ color: 'var(--texto-primario)', fontWeight: 600 }}>${(d.precio_unitario * d.cantidad).toFixed(2)}</span>
+                  <span style={{ color: '#ffffff', fontWeight: 600 }}>{formatearPrecio((Number(d.precio_unitario) || 0) * (Number(d.cantidad) || 1))}</span>
                 </div>
               ))}
             </div>
           ))}
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16, paddingTop: 14, borderTop: '2px solid var(--borde-normal)' }}>
-            <span style={{ fontFamily: 'var(--fuente-titular)', fontWeight: 700, fontSize: 'var(--texto-xl)' }}>Total a pagar</span>
-            <span style={{ fontFamily: 'var(--fuente-titular)', fontWeight: 800, fontSize: 'var(--texto-3xl)', color: 'var(--dorado-puro)' }}>
-              ${Number(cuenta?.total || 0).toFixed(2)}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16, paddingTop: 14, borderTop: '2px solid #2c2c36' }}>
+            <span style={{ fontWeight: 700, fontSize: '1.15rem' }}>Total a pagar</span>
+            <span style={{ fontFamily: 'var(--fuente-titular, sans-serif)', fontWeight: 800, fontSize: '1.6rem', color: '#e5a93c' }}>
+              {formatearPrecio(totalAPagar)}
             </span>
           </div>
         </div>
 
-        {/* Selección de método de pago */}
-        <div className="tarjeta">
-          <h3 style={{ fontFamily: 'var(--fuente-titular)', fontSize: 'var(--texto-base)', color: 'var(--texto-primario)', marginBottom: 14 }}>
-            ¿Cómo deseas pagar?
+        {/* Método de pago */}
+        <div style={{
+          background: '#19191d',
+          borderRadius: '18px',
+          padding: '20px',
+          border: '1px solid #27272e',
+        }}>
+          <h3 style={{
+            margin: '0 0 14px',
+            fontSize: '0.85rem',
+            fontWeight: 800,
+            color: '#8f9098',
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+          }}>
+            MÉTODO DE PAGO
           </h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <button
               type="button"
               onClick={() => setMetodo('efectivo')}
               style={{
                 padding: '16px 12px',
-                borderRadius: 'var(--radio-lg)',
-                border: `2px solid ${metodo === 'efectivo' ? 'var(--dorado-puro)' : 'var(--borde-normal)'}`,
-                background: metodo === 'efectivo' ? 'var(--dorado-muy-suave)' : 'var(--superficie-2)',
-                color: metodo === 'efectivo' ? 'var(--dorado-puro)' : 'var(--texto-secundario)',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
-                cursor: 'pointer', fontWeight: 600, fontSize: 'var(--texto-sm)',
+                borderRadius: '14px',
+                border: metodo === 'efectivo' ? '2px solid #e5a93c' : '1px solid #2c2c36',
+                background: metodo === 'efectivo' ? 'rgba(229, 169, 60, 0.15)' : '#151518',
+                color: metodo === 'efectivo' ? '#e5a93c' : '#8f9098',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 8,
+                cursor: 'pointer',
+                fontWeight: 700,
+                fontSize: '0.9rem',
+                transition: 'all 0.2s ease',
               }}
             >
-              <Banknote size={24} />
+              <Banknote size={26} strokeWidth={2.2} />
               <span>Efectivo</span>
             </button>
+
             <button
               type="button"
               onClick={() => setMetodo('transferencia')}
               style={{
                 padding: '16px 12px',
-                borderRadius: 'var(--radio-lg)',
-                border: `2px solid ${metodo === 'transferencia' ? 'var(--dorado-puro)' : 'var(--borde-normal)'}`,
-                background: metodo === 'transferencia' ? 'var(--dorado-muy-suave)' : 'var(--superficie-2)',
-                color: metodo === 'transferencia' ? 'var(--dorado-puro)' : 'var(--texto-secundario)',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
-                cursor: 'pointer', fontWeight: 600, fontSize: 'var(--texto-sm)',
+                borderRadius: '14px',
+                border: metodo === 'transferencia' ? '2px solid #e5a93c' : '1px solid #2c2c36',
+                background: metodo === 'transferencia' ? 'rgba(229, 169, 60, 0.15)' : '#151518',
+                color: metodo === 'transferencia' ? '#e5a93c' : '#8f9098',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 8,
+                cursor: 'pointer',
+                fontWeight: 700,
+                fontSize: '0.9rem',
+                transition: 'all 0.2s ease',
               }}
             >
-              <CreditCard size={24} />
+              <CreditCard size={26} strokeWidth={2.2} />
               <span>Transferencia</span>
             </button>
           </div>
         </div>
 
+        {/* Botón pedir la cuenta */}
         <button
-          className="btn btn-primario btn-bloque btn-lg"
+          type="button"
           onClick={manejarSolicitarCuenta}
-          disabled={procesando}
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+          disabled={procesando || totalAPagar === 0}
+          style={{
+            background: '#e5a93c',
+            border: 'none',
+            borderRadius: '16px',
+            padding: '16px 20px',
+            color: '#121214',
+            fontWeight: 800,
+            fontSize: '1.08rem',
+            cursor: procesando ? 'not-allowed' : 'pointer',
+            boxShadow: '0 8px 24px rgba(229, 169, 60, 0.35)',
+            opacity: procesando ? 0.7 : 1,
+            transition: 'transform 0.15s ease',
+          }}
+          onMouseDown={e => !procesando && (e.currentTarget.style.transform = 'scale(0.98)')}
+          onMouseUp={e => !procesando && (e.currentTarget.style.transform = 'scale(1)')}
         >
           {procesando ? 'Solicitando...' : 'Pedir la cuenta al mesero'}
         </button>
@@ -186,3 +306,4 @@ export default function PaginaPago() {
     </div>
   );
 }
+

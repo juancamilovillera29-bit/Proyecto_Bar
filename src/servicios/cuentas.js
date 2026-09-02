@@ -8,19 +8,25 @@ export async function obtenerCuentaActivaDeMesa(mesaId) {
   if (!supabaseConfigurado) {
     return cuentasMock.find(c => c.mesa_id === mesaId && (c.estado === 'abierta' || c.estado === 'pendiente_pago')) || null;
   }
-  const { data, error } = await supabase
-    .from('cuentas')
-    .select('*')
-    .eq('mesa_id', mesaId)
-    .in('estado', ['abierta', 'pendiente_pago'])
-    .order('abierta_en', { ascending: false })
-    .maybeSingle();
+  try {
+    const { data, error } = await supabase
+      .from('cuentas')
+      .select('*')
+      .eq('mesa_id', mesaId)
+      .in('estado', ['abierta', 'pendiente_pago'])
+      .order('abierta_en', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-  if (error) {
-    console.error('Error al obtener cuenta activa:', error);
+    if (error) {
+      console.error('Error al obtener cuenta activa:', error);
+      return null;
+    }
+    return data || null;
+  } catch (err) {
+    console.error('Error inesperado al obtener cuenta activa:', err);
     return null;
   }
-  return data || null;
 }
 
 export async function abrirCuenta(mesaId) {
@@ -29,7 +35,11 @@ export async function abrirCuenta(mesaId) {
     cuentasMock.push(nueva);
     return nueva;
   }
-  const { data, error } = await supabase.from('cuentas').insert({ mesa_id: mesaId, estado: 'abierta', total: 0 }).select().single();
+  const { data, error } = await supabase
+    .from('cuentas')
+    .insert({ mesa_id: mesaId, estado: 'abierta', total: 0 })
+    .select()
+    .single();
   if (error) throw error;
   return data;
 }

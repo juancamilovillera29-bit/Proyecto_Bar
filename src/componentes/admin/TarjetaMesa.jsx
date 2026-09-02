@@ -3,6 +3,7 @@
 // ============================================
 import { DollarSign, QrCode, Trash2 } from 'lucide-react';
 import { EstadoBadge } from '../comunes/EstadoBadge.jsx';
+import { formatearPrecio } from '../cliente/TarjetaProducto.jsx';
 
 const coloresMesa = {
   disponible:     { borde: 'var(--borde-sutil)',    fondo: 'var(--superficie-1)', acento: 'var(--verde-exito-claro)' },
@@ -72,7 +73,7 @@ export function TarjetaMesa({ mesa, cuenta, alAbrir, alCerrar, alVerDetalles, al
               <span>Consumo</span>
             </div>
             <div style={{ fontFamily: 'var(--fuente-titular)', fontWeight: 700, fontSize: 'var(--texto-lg)', color: 'var(--dorado-puro)' }}>
-              ${Number(cuenta.total || 0).toFixed(2)}
+              {formatearPrecio(cuenta.total)}
             </div>
           </div>
         </div>

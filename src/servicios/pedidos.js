@@ -46,15 +46,62 @@ export async function crearPedido(datos) {
     return nuevoPedido;
   }
 
-  // Crear pedido
+  // 1. Verificar o crear una cuenta activa (abierta) para la mesa
+  let idCuentaValida = datosPedido.cuenta_id;
+  try {
+    if (idCuentaValida) {
+      const { data: cExistente } = await supabase
+        .from('cuentas')
+        .select('id, estado')
+        .eq('id', idCuentaValida)
+        .maybeSingle();
+
+      if (!cExistente || cExistente.estado === 'cerrada') {
+        idCuentaValida = null;
+      }
+    }
+
+    if (!idCuentaValida && datosPedido.mesa_id) {
+      // Buscar si ya hay una cuenta abierta para esta mesa
+      const { data: cActiva } = await supabase
+        .from('cuentas')
+        .select('id')
+        .eq('mesa_id', datosPedido.mesa_id)
+        .in('estado', ['abierta', 'pendiente_pago'])
+        .order('abierta_en', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (cActiva) {
+        idCuentaValida = cActiva.id;
+      } else {
+        // Crear una cuenta nueva abierta
+        const { data: cNueva } = await supabase
+          .from('cuentas')
+          .insert({ mesa_id: datosPedido.mesa_id, estado: 'abierta', total: 0 })
+          .select()
+          .single();
+        if (cNueva) idCuentaValida = cNueva.id;
+      }
+    }
+  } catch (e) {
+    console.warn('Error al verificar cuenta de mesa en crearPedido:', e);
+  }
+
+  const payloadPedido = {
+    ...datosPedido,
+    cuenta_id: idCuentaValida || null,
+  };
+
+  // 2. Crear pedido
   const { data: pedido, error: errorPedido } = await supabase
     .from('pedidos')
-    .insert(datosPedido)
+    .insert(payloadPedido)
     .select()
     .single();
   if (errorPedido) throw errorPedido;
 
-  // Crear detalles
+  // 3. Crear detalles
   const detallesConId = detalles.map(d => ({ ...d, pedido_id: pedido.id }));
   const { error: errorDetalles } = await supabase.from('detalles_pedido').insert(detallesConId);
   if (errorDetalles) {
@@ -62,36 +109,35 @@ export async function crearPedido(datos) {
     throw errorDetalles;
   }
 
-  // Actualizar mesa a ocupada automáticamente
+  // 4. Actualizar mesa a ocupada automáticamente
   if (datosPedido.mesa_id) {
     try {
       await supabase
         .from('mesas')
-        .update({ estado: 'ocupada', actualizado_en: new Date().toISOString() })
+        .update({ estado: 'ocupada' })
         .eq('id', datosPedido.mesa_id);
     } catch (e) {
       console.warn('No se pudo actualizar estado de la mesa:', e);
     }
   }
 
-  // Actualizar total de cuenta
+  // 5. Actualizar el total acumulado en la tabla cuentas (columna 'total')
   const totalPedido = detalles.reduce((s, d) => s + (Number(d.precio_unitario) || 0) * (Number(d.cantidad) || 1), 0);
-  if (datosPedido.cuenta_id) {
+  if (idCuentaValida) {
     try {
       const { data: cData } = await supabase
         .from('cuentas')
-        .select('total_acumulado')
-        .eq('id', datosPedido.cuenta_id)
+        .select('total')
+        .eq('id', idCuentaValida)
         .single();
-      if (cData) {
-        const nuevoTotal = (Number(cData.total_acumulado) || 0) + totalPedido;
-        await supabase
-          .from('cuentas')
-          .update({ total_acumulado: nuevoTotal, actualizado_en: new Date().toISOString() })
-          .eq('id', datosPedido.cuenta_id);
-      }
+      const totalPrevio = Number(cData?.total) || 0;
+      const nuevoTotal = totalPrevio + totalPedido;
+      await supabase
+        .from('cuentas')
+        .update({ total: nuevoTotal })
+        .eq('id', idCuentaValida);
     } catch (e) {
-      console.warn('No se pudo actualizar total_acumulado de cuenta:', e);
+      console.warn('No se pudo actualizar total de cuenta:', e);
     }
   }
 

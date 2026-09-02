@@ -11,10 +11,13 @@ import { CargandoSpinner } from '../../componentes/comunes/CargandoSpinner.jsx';
 import { obtenerMesas, actualizarEstadoMesa, crearMesa, eliminarMesa } from '../../servicios/mesas.js';
 import { obtenerCuentaActivaDeMesa, abrirCuenta, cerrarCuenta } from '../../servicios/cuentas.js';
 import { registrarVenta } from '../../servicios/ventas.js';
+import { obtenerPedidos } from '../../servicios/pedidos.js';
+import { formatearPrecio } from '../../componentes/cliente/TarjetaProducto.jsx';
 
 export default function Mesas() {
   const [mesas, setMesas]           = useState([]);
   const [cuentas, setCuentas]       = useState({});
+  const [pedidosMesa, setPedidosMesa] = useState([]);
   const [cargando, setCargando]     = useState(true);
   const [mesaSeleccionada, setMesaSeleccionada] = useState(null);
   const [modalDetalle, setModalDetalle]   = useState(false);
@@ -54,7 +57,18 @@ export default function Mesas() {
     const cuentasMap = {};
     for (const mesa of mesasDatos) {
       const cuenta = await obtenerCuentaActivaDeMesa(mesa.id);
-      if (cuenta) cuentasMap[mesa.id] = cuenta;
+      if (cuenta) {
+        if (Number(cuenta.total || 0) === 0) {
+          try {
+            const peds = await obtenerPedidos({ cuenta_id: cuenta.id });
+            const totalCalc = (peds || []).reduce((acc, p) => {
+              return acc + (p.detalles || []).reduce((s, d) => s + (Number(d.precio_unitario) || 0) * (Number(d.cantidad) || 1), 0);
+            }, 0);
+            if (totalCalc > 0) cuenta.total = totalCalc;
+          } catch (e) {}
+        }
+        cuentasMap[mesa.id] = cuenta;
+      }
     }
     setCuentas(cuentasMap);
     if (!esRecarga) setCargando(false);
@@ -68,9 +82,17 @@ export default function Mesas() {
     setProcesando(false);
   }
 
-  function manejarVerDetalles(mesa) {
+  async function manejarVerDetalles(mesa) {
     setMesaSeleccionada(mesa);
+    setPedidosMesa([]);
     setModalDetalle(true);
+    const cuenta = cuentas[mesa.id];
+    if (cuenta) {
+      try {
+        const peds = await obtenerPedidos({ cuenta_id: cuenta.id });
+        setPedidosMesa(peds || []);
+      } catch (e) {}
+    }
   }
 
   function manejarVerQR(mesa) {
@@ -127,7 +149,17 @@ export default function Mesas() {
     if (!cuenta) return;
     setProcesando(true);
     try {
-      await registrarVenta({ cuenta_id: cuenta.id, mesa_id: mesaSeleccionada.id, total: cuenta.total, metodo_pago: metodoPago });
+      const totalPedidosCalc = (pedidosMesa || []).reduce((acc, p) => {
+        return acc + (p.detalles || []).reduce((s, d) => s + (Number(d.precio_unitario) || 0) * (Number(d.cantidad) || 1), 0);
+      }, 0);
+      const totalFinal = Math.max(Number(cuenta.total || 0), totalPedidosCalc);
+
+      await registrarVenta({
+        cuenta_id: cuenta.id,
+        mesa_id: mesaSeleccionada.id,
+        total: totalFinal,
+        metodo_pago: metodoPago,
+      });
       await cerrarCuenta(cuenta.id);
       await actualizarEstadoMesa(mesaSeleccionada.id, 'disponible');
       await cargarDatos();
@@ -329,9 +361,46 @@ export default function Mesas() {
                 <div style={{ background: 'var(--superficie-2)', borderRadius: 'var(--radio-md)', padding: 18, border: '1px solid var(--borde-normal)' }}>
                   <div style={{ fontSize: 'var(--texto-xs)', color: 'var(--texto-terciario)', marginBottom: 6 }}>TOTAL ACUMULADO</div>
                   <div style={{ fontFamily: 'var(--fuente-titular)', fontSize: 'var(--texto-4xl)', fontWeight: 800, color: 'var(--dorado-puro)' }}>
-                    ${Number(cuentas[mesaSeleccionada.id]?.total || 0).toFixed(2)}
+                    {formatearPrecio(
+                      Math.max(
+                        Number(cuentas[mesaSeleccionada.id]?.total || 0),
+                        (pedidosMesa || []).reduce((acc, p) => acc + (p.detalles || []).reduce((s, d) => s + (Number(d.precio_unitario) || 0) * (Number(d.cantidad) || 1), 0), 0)
+                      )
+                    )}
                   </div>
                 </div>
+
+                {pedidosMesa.length > 0 && (
+                  <div style={{
+                    background: 'var(--superficie-1)',
+                    borderRadius: 'var(--radio-md)',
+                    padding: '12px 14px',
+                    border: '1px solid var(--borde-sutil)',
+                    maxHeight: '180px',
+                    overflowY: 'auto',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px',
+                  }}>
+                    <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--texto-terciario)', textTransform: 'uppercase' }}>
+                      Detalle de pedidos ({pedidosMesa.length})
+                    </div>
+                    {pedidosMesa.map((ped, idx) => (
+                      <div key={ped.id} style={{ fontSize: '12px', borderBottom: idx < pedidosMesa.length - 1 ? '1px solid var(--borde-sutil)' : 'none', paddingBottom: '6px' }}>
+                        <div style={{ color: 'var(--dorado-puro)', fontWeight: 600, fontSize: '11px' }}>
+                          Pedido #{pedidosMesa.length - idx} • <span style={{ color: 'var(--texto-muted)' }}>{ped.estado}</span>
+                        </div>
+                        {(ped.detalles || []).map(d => (
+                          <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--texto-primario)', marginTop: '2px' }}>
+                            <span>{d.producto?.nombre || 'Producto'} ×{d.cantidad}</span>
+                            <span style={{ fontWeight: 600 }}>{formatearPrecio((Number(d.precio_unitario) || 0) * (Number(d.cantidad) || 1))}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 <div className="campo">
                   <label>Método de pago recibido</label>
                   <select value={metodoPago} onChange={e => setMetodoPago(e.target.value)}>
