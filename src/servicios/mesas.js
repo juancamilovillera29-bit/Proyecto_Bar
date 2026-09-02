@@ -12,10 +12,18 @@ export async function obtenerMesas() {
 }
 
 export async function obtenerMesaPorCodigo(codigoQr) {
-  if (!supabaseConfigurado) return mesasMock.find(m => m.codigo_qr === codigoQr) || null;
-  const { data, error } = await supabase.from('mesas').select('*').eq('codigo_qr', codigoQr).single();
-  if (error) throw error;
-  return data;
+  if (!supabaseConfigurado) return mesasMock.find(m => m.codigo_qr?.toLowerCase() === codigoQr?.toLowerCase()) || null;
+  const { data, error } = await supabase
+    .from('mesas')
+    .select('*')
+    .ilike('codigo_qr', codigoQr)
+    .maybeSingle();
+
+  if (error) {
+    console.error('Error al obtener mesa por código:', error);
+    return null;
+  }
+  return data || null;
 }
 
 export async function actualizarEstadoMesa(id, estado) {

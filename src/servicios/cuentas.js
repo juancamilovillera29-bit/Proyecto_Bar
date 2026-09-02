@@ -14,9 +14,12 @@ export async function obtenerCuentaActivaDeMesa(mesaId) {
     .eq('mesa_id', mesaId)
     .in('estado', ['abierta', 'pendiente_pago'])
     .order('abierta_en', { ascending: false })
-    .limit(1)
-    .single();
-  if (error && error.code !== 'PGRST116') throw error;
+    .maybeSingle();
+
+  if (error) {
+    console.error('Error al obtener cuenta activa:', error);
+    return null;
+  }
   return data || null;
 }
 

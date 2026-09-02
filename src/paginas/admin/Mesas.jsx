@@ -2,7 +2,7 @@
 // Página: Mesas — Gestión limpia de mesas y QR reales
 // ============================================
 import { useState, useEffect, useRef } from 'react';
-import { RefreshCw, QrCode, Plus, Download, Printer, ExternalLink, Trash2, AlertTriangle } from 'lucide-react';
+import { RefreshCw, QrCode, Plus, Download, Printer, ExternalLink, Trash2, AlertTriangle, Copy, Check, Globe } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { TarjetaMesa } from '../../componentes/admin/TarjetaMesa.jsx';
 import { Modal } from '../../componentes/comunes/Modal.jsx';
@@ -26,6 +26,17 @@ export default function Mesas() {
   const [nombreNuevaMesa, setNombreNuevaMesa] = useState('');
   const [metodoPago, setMetodoPago]       = useState('efectivo');
   const [procesando, setProcesando]       = useState(false);
+  const [copiado, setCopiado]             = useState(false);
+  
+  // Detectar IP / URL base correcta (si es localhost, usar la IP de la red WiFi 10.77.159.97 para teléfonos)
+  const defaultBaseUrl = typeof window !== 'undefined'
+    ? (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+        ? `http://10.77.159.97:${window.location.port || 5173}`
+        : window.location.origin)
+    : 'http://localhost:5173';
+
+  const [baseUrl, setBaseUrl]             = useState(defaultBaseUrl);
+  const [editandoBaseUrl, setEditandoBaseUrl] = useState(false);
   const qrRef = useRef(null);
 
   useEffect(() => { cargarDatos(); }, []);
@@ -58,6 +69,7 @@ export default function Mesas() {
 
   function manejarVerQR(mesa) {
     setMesaSeleccionada(mesa);
+    setCopiado(false);
     setModalQR(true);
   }
 
@@ -119,6 +131,15 @@ export default function Mesas() {
     }
   }
 
+  const urlMesaActual = mesaSeleccionada ? `${baseUrl.replace(/\/$/, '')}/mesa/${mesaSeleccionada.codigo_qr}` : '';
+
+  function copiarEnlace() {
+    if (!urlMesaActual) return;
+    navigator.clipboard.writeText(urlMesaActual);
+    setCopiado(true);
+    setTimeout(() => setCopiado(false), 2000);
+  }
+
   function imprimirQR() {
     const ventanaImpresion = window.open('', '', 'width=600,height=700');
     const qrSvg = qrRef.current ? qrRef.current.outerHTML : '';
@@ -132,6 +153,7 @@ export default function Mesas() {
             h1 { font-size: 28px; margin: 0 0 4px; color: #111; letter-spacing: 2px; }
             h2 { font-size: 22px; margin: 12px 0 20px; color: #c9a84c; }
             p { font-size: 14px; color: #666; margin-top: 16px; }
+            .url-txt { font-size: 11px; color: #888; margin-top: 8px; word-break: break-all; }
           </style>
         </head>
         <body>
@@ -140,6 +162,7 @@ export default function Mesas() {
             <h2>${mesaSeleccionada?.nombre}</h2>
             <div style="display:flex; justify-content:center; margin: 20px 0;">${qrSvg}</div>
             <p>Escanea con tu celular para ver el menú y pedir</p>
+            <div class="url-txt">${urlMesaActual}</div>
           </div>
           <script>window.print(); window.close();</script>
         </body>
@@ -147,8 +170,6 @@ export default function Mesas() {
     `);
     ventanaImpresion.document.close();
   }
-
-  const urlMesa = mesaSeleccionada ? `${window.location.origin}/mesa/${mesaSeleccionada.codigo_qr}` : '';
 
   if (cargando) return <CargandoSpinner mensaje="Cargando mesas..." tamano="grande" />;
 
@@ -359,7 +380,7 @@ export default function Mesas() {
             }}>
               <QRCodeSVG
                 ref={qrRef}
-                value={`http://192.168.1.7:5173/mesa/${mesaSeleccionada.codigo_qr}`}
+                value={urlMesaActual}
                 size={240}
                 level="H"
                 includeMargin={false}
@@ -374,22 +395,100 @@ export default function Mesas() {
             <div style={{ fontSize: 'var(--texto-base)', fontWeight: 600, color: 'var(--texto-primario)', marginBottom: 8 }}>
               {mesaSeleccionada.nombre}
             </div>
+
+            {/* Selector / Visualizador de Dirección Host / IP */}
             <div style={{
               background: 'var(--superficie-2)',
               border: '1px solid var(--borde-normal)',
               borderRadius: 'var(--radio-md)',
-              padding: '8px 12px',
+              padding: '12px',
               fontSize: 'var(--texto-xs)',
-              color: 'var(--dorado-puro)',
-              marginBottom: 20,
-              fontFamily: 'monospace',
+              marginBottom: 16,
+              textAlign: 'left',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
             }}>
-              📱 Escanea este QR con tu celular en la misma red WiFi
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: 'var(--dorado-puro)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <Globe size={14} /> Dirección del QR:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setEditandoBaseUrl(!editandoBaseUrl)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--texto-terciario)',
+                    textDecoration: 'underline',
+                    fontSize: '11px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {editandoBaseUrl ? 'Guardar' : 'Cambiar IP / URL'}
+                </button>
+              </div>
+
+              {editandoBaseUrl ? (
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <input
+                    type="text"
+                    value={baseUrl}
+                    onChange={e => setBaseUrl(e.target.value)}
+                    placeholder="http://10.77.159.97:5173 o https://tuapp.vercel.app"
+                    style={{ fontSize: '12px', padding: '6px 8px' }}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-primario btn-sm"
+                    onClick={() => setEditandoBaseUrl(false)}
+                  >
+                    OK
+                  </button>
+                </div>
+              ) : (
+                <div style={{
+                  fontFamily: 'monospace',
+                  color: 'var(--texto-primario)',
+                  wordBreak: 'break-all',
+                  background: 'var(--superficie-1)',
+                  padding: '6px 8px',
+                  borderRadius: 'var(--radio-sm)',
+                }}>
+                  {urlMesaActual}
+                </div>
+              )}
+
+              <div style={{ color: 'var(--texto-terciario)', fontSize: '11px' }}>
+                📱 Tu celular debe estar conectado a la misma red WiFi para abrir la IP local.
+              </div>
             </div>
 
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-              <button className="btn btn-primario" onClick={imprimirQR} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Printer size={16} /> Imprimir QR
+            {/* Acciones de Copiar, Probar e Imprimir */}
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+              <button
+                className="btn btn-fantasma btn-sm"
+                onClick={copiarEnlace}
+                style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+              >
+                {copiado ? <Check size={14} color="var(--verde-exito-claro)" /> : <Copy size={14} />}
+                {copiado ? '¡Copiado!' : 'Copiar enlace'}
+              </button>
+              <a
+                href={urlMesaActual}
+                target="_blank"
+                rel="noreferrer"
+                className="btn btn-fantasma btn-sm"
+                style={{ display: 'flex', alignItems: 'center', gap: 6, textDecoration: 'none' }}
+              >
+                <ExternalLink size={14} /> Abrir menú
+              </a>
+              <button
+                className="btn btn-primario btn-sm"
+                onClick={imprimirQR}
+                style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+              >
+                <Printer size={14} /> Imprimir QR
               </button>
             </div>
           </div>
@@ -398,4 +497,5 @@ export default function Mesas() {
     </div>
   );
 }
+
 
