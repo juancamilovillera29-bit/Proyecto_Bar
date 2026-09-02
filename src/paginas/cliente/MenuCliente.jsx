@@ -1,14 +1,13 @@
 // ============================================
-// Página: MenuCliente — Catálogo con carrito
-// Acceso por código QR de la mesa
+// Página: MenuCliente — Catálogo con carrito (Mockup UI)
 // ============================================
-import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { Search, Wine, ArrowLeft } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { Search, Clock } from 'lucide-react';
 import { TarjetaProducto } from '../../componentes/cliente/TarjetaProducto.jsx';
 import { ResumenCarrito } from '../../componentes/cliente/ResumenCarrito.jsx';
 import { CargandoSpinner } from '../../componentes/comunes/CargandoSpinner.jsx';
-import { ProveedorCarrito, useCarrito } from '../../contextos/ContextoCarrito.jsx';
+import { useCarrito } from '../../contextos/ContextoCarrito.jsx';
 import { obtenerProductos } from '../../servicios/productos.js';
 import { obtenerMesaPorCodigo } from '../../servicios/mesas.js';
 import { obtenerCuentaActivaDeMesa, abrirCuenta } from '../../servicios/cuentas.js';
@@ -16,11 +15,12 @@ import { obtenerCuentaActivaDeMesa, abrirCuenta } from '../../servicios/cuentas.
 export default function MenuCliente() {
   const { codigoQr } = useParams();
   const { establecerMesa } = useCarrito();
-  const [mesa, setMesa]         = useState(null);
+  const [mesa, setMesa]           = useState(null);
   const [productos, setProductos] = useState([]);
-  const [busqueda, setBusqueda] = useState('');
-  const [cargando, setCargando] = useState(true);
-  const [error, setError]       = useState(null);
+  const [categoriaActiva, setCategoriaActiva] = useState('todos');
+  const [busqueda, setBusqueda]   = useState('');
+  const [cargando, setCargando]   = useState(true);
+  const [error, setError]         = useState(null);
 
   useEffect(() => {
     async function inicializar() {
@@ -31,7 +31,7 @@ export default function MenuCliente() {
         ]);
         if (!mesaDatos) { setError('Mesa no encontrada'); setCargando(false); return; }
         setMesa(mesaDatos);
-        setProductos(productosDatos);
+        setProductos(productosDatos || []);
 
         // Obtener o crear cuenta de la mesa
         let cuenta = await obtenerCuentaActivaDeMesa(mesaDatos.id);
@@ -46,107 +46,172 @@ export default function MenuCliente() {
     inicializar();
   }, [codigoQr]);
 
+  // Obtener lista única de categorías
+  const categorias = useMemo(() => {
+    const set = new Set();
+    productos.forEach(p => {
+      if (p.categoria) set.add(p.categoria.trim());
+    });
+    return ['todos', ...Array.from(set)];
+  }, [productos]);
+
   if (cargando) return <CargandoSpinner mensaje="Cargando menú..." tamano="grande" />;
 
   if (error) return (
-    <div style={{ minHeight: '100vh', background: 'var(--negro-profundo)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+    <div style={{ minHeight: '100vh', background: '#121214', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
       <div style={{ textAlign: 'center' }}>
         <div style={{ fontSize: '3rem', marginBottom: 16 }}>😕</div>
-        <div style={{ fontFamily: 'var(--fuente-titular)', fontSize: 'var(--texto-2xl)', color: 'var(--texto-primario)', marginBottom: 8 }}>{error}</div>
-        <div style={{ color: 'var(--texto-terciario)', fontSize: 'var(--texto-sm)' }}>Verifica el código QR de tu mesa</div>
+        <div style={{ fontFamily: 'var(--fuente-titular, sans-serif)', fontSize: '1.5rem', color: '#ffffff', marginBottom: 8 }}>{error}</div>
+        <div style={{ color: '#8f9098', fontSize: '0.9rem' }}>Verifica el código QR de tu mesa</div>
       </div>
     </div>
   );
 
-  const productosFiltrados = productos.filter(p =>
-    p.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
-    (p.descripcion || '').toLowerCase().includes(busqueda.toLowerCase())
-  );
+  const productosFiltrados = productos.filter(p => {
+    const coincideTexto = p.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
+      (p.descripcion || '').toLowerCase().includes(busqueda.toLowerCase());
+    const coincideCategoria = categoriaActiva === 'todos' || (p.categoria && p.categoria.toLowerCase() === categoriaActiva.toLowerCase());
+    return coincideTexto && coincideCategoria;
+  });
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--negro-base)', paddingBottom: 120 }}>
-      {/* Encabezado */}
+    <div style={{ minHeight: '100vh', background: '#121214', paddingBottom: 110, color: '#ffffff' }}>
+      {/* Encabezado superior */}
       <div style={{
-        background: 'var(--negro-profundo)',
-        borderBottom: '1px solid var(--borde-sutil)',
-        padding: '20px',
-        position: 'sticky', top: 0, zIndex: 100,
+        padding: '18px 20px 14px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        position: 'sticky',
+        top: 0,
+        background: '#121214',
+        zIndex: 100,
+        borderBottom: '1px solid rgba(255,255,255,0.05)',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-          <div style={{
-            width: 40, height: 40, borderRadius: '50%',
-            background: 'linear-gradient(135deg, var(--dorado-puro), var(--dorado-suave))',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <Wine size={20} color="var(--negro-profundo)" />
-          </div>
-          <div>
-            <div style={{ fontFamily: 'var(--fuente-titular)', fontWeight: 800, fontSize: '1.1rem', color: 'var(--dorado-puro)' }}>
-              BORONDO
-            </div>
-            <div style={{ fontSize: 'var(--texto-xs)', color: 'var(--texto-muted)' }}>{mesa?.nombre}</div>
-          </div>
+        <div style={{
+          fontFamily: 'var(--fuente-titular, sans-serif)',
+          fontWeight: 800,
+          fontSize: '1.25rem',
+          letterSpacing: '0.06em',
+          color: '#e5a93c',
+        }}>
+          BORONDO
         </div>
 
-        {/* Buscador */}
+        <div style={{
+          background: '#202025',
+          border: '1px solid #2d2d37',
+          padding: '6px 16px',
+          borderRadius: '24px',
+          fontSize: '0.85rem',
+          fontWeight: 600,
+          color: '#d4d4d8',
+        }}>
+          {mesa?.nombre || 'Mesa'}
+        </div>
+      </div>
+
+      {/* Selector de Categorías (Pills) */}
+      <div style={{
+        padding: '14px 20px 10px',
+        display: 'flex',
+        gap: '10px',
+        overflowX: 'auto',
+        scrollbarWidth: 'none',
+      }}>
+        {categorias.map(cat => {
+          const activa = categoriaActiva.toLowerCase() === cat.toLowerCase();
+          const nombreFormateado = cat === 'todos' ? 'Todos' : cat.charAt(0).toUpperCase() + cat.slice(1);
+          return (
+            <button
+              key={cat}
+              type="button"
+              onClick={() => setCategoriaActiva(cat)}
+              style={{
+                background: activa ? '#e5a93c' : '#202025',
+                color: activa ? '#121214' : '#8f9098',
+                border: activa ? 'none' : '1px solid #2c2c36',
+                borderRadius: '20px',
+                padding: '8px 18px',
+                fontSize: '0.88rem',
+                fontWeight: activa ? 800 : 500,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                transition: 'all 0.2s ease',
+                flexShrink: 0,
+              }}
+            >
+              {nombreFormateado}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Buscador opcional */}
+      <div style={{ padding: '4px 20px 16px' }}>
         <div style={{ position: 'relative' }}>
-          <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--texto-muted)' }} />
+          <Search size={16} color="#8f9098" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)' }} />
           <input
             type="search"
-            placeholder="Buscar en el menú..."
+            placeholder="Buscar bebida o plato..."
             value={busqueda}
             onChange={e => setBusqueda(e.target.value)}
-            style={{ paddingLeft: 40, background: 'var(--superficie-2)' }}
+            style={{
+              width: '100%',
+              padding: '10px 14px 10px 38px',
+              background: '#19191d',
+              border: '1px solid #282830',
+              borderRadius: '14px',
+              color: '#ffffff',
+              fontSize: '0.9rem',
+              outline: 'none',
+            }}
           />
         </div>
       </div>
 
-      {/* Catálogo de productos */}
-      <div style={{ padding: '20px' }}>
-        <h2 style={{
-          fontFamily: 'var(--fuente-titular)', fontWeight: 700,
-          fontSize: 'var(--texto-xl)', color: 'var(--dorado-puro)',
-          marginBottom: 16, letterSpacing: '0.05em',
-        }}>
-          Nuestro menú
-        </h2>
-
+      {/* Lista de productos */}
+      <div style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
         {productosFiltrados.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--texto-muted)' }}>
-            <div style={{ fontSize: '2rem', marginBottom: 8 }}>🔍</div>
-            <div>No se encontraron productos para "{busqueda}"</div>
+          <div style={{ textAlign: 'center', padding: '50px 20px', color: '#8f9098' }}>
+            <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>🔍</div>
+            <div>No se encontraron productos disponibles</div>
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12 }}>
-            {productosFiltrados.map(producto => (
-              <TarjetaProducto key={producto.id} producto={producto} />
-            ))}
-          </div>
+          productosFiltrados.map(producto => (
+            <TarjetaProducto key={producto.id} producto={producto} />
+          ))
         )}
       </div>
 
-      {/* Ver mis pedidos */}
-      <div style={{ padding: '0 20px' }}>
-        <hr className="separador-dorado" />
-        <div style={{ display: 'flex', gap: 10 }}>
-          <a
-            href={`/mesa/${codigoQr}/seguimiento`}
-            style={{
-              flex: 1, padding: '12px', borderRadius: 'var(--radio-lg)',
-              background: 'var(--superficie-2)', border: '1px solid var(--borde-normal)',
-              color: 'var(--texto-secundario)', textDecoration: 'none',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-              fontSize: 'var(--texto-sm)', fontWeight: 500,
-            }}
-          >
-            Ver mis pedidos →
-          </a>
-        </div>
+      {/* Botón ver mis pedidos anteriores */}
+      <div style={{ padding: '24px 20px 10px' }}>
+        <Link
+          to={`/mesa/${codigoQr}/seguimiento`}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px',
+            padding: '12px',
+            background: '#1a1a1f',
+            border: '1px solid #282832',
+            borderRadius: '14px',
+            color: '#d49a37',
+            textDecoration: 'none',
+            fontSize: '0.9rem',
+            fontWeight: 600,
+          }}
+        >
+          <Clock size={16} />
+          Ver pedidos anteriores de esta mesa
+        </Link>
       </div>
 
-      {/* Carrito flotante */}
+      {/* Barra dorada inferior fija de Carrito */}
       <ResumenCarrito mesaCodigoQr={codigoQr} />
     </div>
   );
 }
+
 
