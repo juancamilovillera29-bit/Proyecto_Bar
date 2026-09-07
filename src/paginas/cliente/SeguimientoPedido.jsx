@@ -40,10 +40,13 @@ export default function SeguimientoPedido() {
       const cuentaDatos = await obtenerCuentaActivaDeMesa(mesaDatos.id);
       setCuenta(cuentaDatos);
 
-      // Si hay cuenta activa, traer los pedidos de esa cuenta, sino los pedidos de la mesa
-      const filtros = cuentaDatos ? { cuenta_id: cuentaDatos.id } : { mesa_id: mesaDatos.id };
-      const pedidosDatos = await obtenerPedidos(filtros);
-      setPedidos((pedidosDatos || []).filter(p => p.estado !== 'cancelado'));
+      // Solo traer los pedidos de la cuenta activa actual de este cliente
+      if (cuentaDatos?.id) {
+        const pedidosDatos = await obtenerPedidos({ cuenta_id: cuentaDatos.id });
+        setPedidos((pedidosDatos || []).filter(p => p.estado !== 'cancelado'));
+      } else {
+        setPedidos([]);
+      }
     } catch (e) {
       console.warn('Error al cargar datos de seguimiento:', e);
     } finally {
@@ -82,12 +85,12 @@ export default function SeguimientoPedido() {
   const estadoActual = ultimoPedido?.estado || 'recibido';
   const pasoActual   = ORDEN_ESTADO[estadoActual] ?? 0;
 
-  // Calcular total exacto a partir de los pedidos de la cuenta
+  // Calcular total exacto a partir de los pedidos de la cuenta activa
   const totalCalculado = pedidos.reduce((acc, p) => {
     const sub = (p.detalles || []).reduce((s, d) => s + (Number(d.precio_unitario) || 0) * (Number(d.cantidad) || 1), 0);
     return acc + sub;
   }, 0);
-  const totalMostrar = Math.max(Number(cuenta?.total || 0), totalCalculado);
+  const totalMostrar = totalCalculado;
 
   return (
     <div style={{ minHeight: '100vh', background: '#121214', paddingBottom: 60, color: '#ffffff' }}>

@@ -56,7 +56,7 @@ export async function crearPedido(datos) {
         .eq('id', idCuentaValida)
         .maybeSingle();
 
-      if (!cExistente || cExistente.estado === 'cerrada') {
+      if (!cExistente || cExistente.estado !== 'abierta') {
         idCuentaValida = null;
       }
     }
@@ -67,7 +67,7 @@ export async function crearPedido(datos) {
         .from('cuentas')
         .select('id')
         .eq('mesa_id', datosPedido.mesa_id)
-        .in('estado', ['abierta', 'pendiente_pago'])
+        .eq('estado', 'abierta')
         .order('abierta_en', { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -75,7 +75,13 @@ export async function crearPedido(datos) {
       if (cActiva) {
         idCuentaValida = cActiva.id;
       } else {
-        // Crear una cuenta nueva abierta
+        // Cerrar cuentas viejas y crear una cuenta nueva abierta
+        await supabase
+          .from('cuentas')
+          .update({ estado: 'cerrada', cerrada_en: new Date().toISOString() })
+          .eq('mesa_id', datosPedido.mesa_id)
+          .in('estado', ['abierta', 'pendiente_pago']);
+
         const { data: cNueva } = await supabase
           .from('cuentas')
           .insert({ mesa_id: datosPedido.mesa_id, estado: 'abierta', total: 0 })

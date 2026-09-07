@@ -31,10 +31,28 @@ export async function obtenerCuentaActivaDeMesa(mesaId) {
 
 export async function abrirCuenta(mesaId) {
   if (!supabaseConfigurado) {
+    cuentasMock.forEach(c => {
+      if (c.mesa_id === mesaId && (c.estado === 'abierta' || c.estado === 'pendiente_pago')) {
+        c.estado = 'cerrada';
+        c.cerrada_en = new Date().toISOString();
+      }
+    });
     const nueva = { id: `cta-${Date.now()}`, mesa_id: mesaId, estado: 'abierta', total: 0, abierta_en: new Date().toISOString(), cerrada_en: null };
     cuentasMock.push(nueva);
     return nueva;
   }
+  
+  // Cerrar cuentas abiertas anteriores de esta mesa para no mezclar consumos pasados
+  try {
+    await supabase
+      .from('cuentas')
+      .update({ estado: 'cerrada', cerrada_en: new Date().toISOString() })
+      .eq('mesa_id', mesaId)
+      .in('estado', ['abierta', 'pendiente_pago']);
+  } catch (e) {
+    console.warn('Error al archivar cuentas previas:', e);
+  }
+
   const { data, error } = await supabase
     .from('cuentas')
     .insert({ mesa_id: mesaId, estado: 'abierta', total: 0 })

@@ -41,9 +41,12 @@ export default function PaginaPago() {
         cerrarSesionCliente();
       }
 
-      const filtros = cuentaDatos ? { cuenta_id: cuentaDatos.id } : { mesa_id: mesaDatos.id };
-      const pedidosDatos = await obtenerPedidos(filtros);
-      setPedidos((pedidosDatos || []).filter(p => p.estado !== 'cancelado'));
+      if (cuentaDatos?.id) {
+        const pedidosDatos = await obtenerPedidos({ cuenta_id: cuentaDatos.id });
+        setPedidos((pedidosDatos || []).filter(p => p.estado !== 'cancelado'));
+      } else {
+        setPedidos([]);
+      }
     } catch (e) {
       console.warn('Error al cargar datos de pago:', e);
     } finally {
@@ -81,12 +84,12 @@ export default function PaginaPago() {
 
   if (cargando) return <CargandoSpinner mensaje="Cargando cuenta final..." tamano="grande" />;
 
-  // Calcular total sumando todos los pedidos
+  // Calcular total sumando solo los pedidos de la cuenta activa actual
   const totalCalculado = pedidos.reduce((acc, p) => {
     const sub = (p.detalles || []).reduce((s, d) => s + (Number(d.precio_unitario) || 0) * (Number(d.cantidad) || 1), 0);
     return acc + sub;
   }, 0);
-  const totalAPagar = Math.max(Number(cuenta?.total || 0), totalCalculado);
+  const totalAPagar = totalCalculado;
 
   if (solicitado) {
     return (
