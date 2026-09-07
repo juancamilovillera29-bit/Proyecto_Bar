@@ -3,15 +3,17 @@
 // ============================================
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Sparkles, Banknote, CreditCard } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Banknote, CreditCard, Lock, ShieldCheck } from 'lucide-react';
 import { CargandoSpinner } from '../../componentes/comunes/CargandoSpinner.jsx';
 import { obtenerMesaPorCodigo, actualizarEstadoMesa } from '../../servicios/mesas.js';
 import { obtenerCuentaActivaDeMesa, marcarCuentaPendientePago } from '../../servicios/cuentas.js';
 import { obtenerPedidos } from '../../servicios/pedidos.js';
 import { formatearPrecio } from '../../componentes/cliente/TarjetaProducto.jsx';
+import { useCarrito } from '../../contextos/ContextoCarrito.jsx';
 
 export default function PaginaPago() {
   const { codigoQr } = useParams();
+  const { cerrarSesionCliente }     = useCarrito();
   const [mesa, setMesa]             = useState(null);
   const [cuenta, setCuenta]         = useState(null);
   const [pedidos, setPedidos]       = useState([]);
@@ -32,6 +34,12 @@ export default function PaginaPago() {
 
       const cuentaDatos = await obtenerCuentaActivaDeMesa(mesaDatos.id);
       setCuenta(cuentaDatos);
+
+      // Si la mesa o cuenta ya están en estado pendiente de pago, reflejar sesión cerrada
+      if (mesaDatos.estado === 'pendiente_pago' || cuentaDatos?.estado === 'pendiente_pago') {
+        setSolicitado(true);
+        cerrarSesionCliente();
+      }
 
       const filtros = cuentaDatos ? { cuenta_id: cuentaDatos.id } : { mesa_id: mesaDatos.id };
       const pedidosDatos = await obtenerPedidos(filtros);
@@ -59,6 +67,10 @@ export default function PaginaPago() {
         await marcarCuentaPendientePago(cuenta.id);
       }
       await actualizarEstadoMesa(mesa.id, 'pendiente_pago');
+      
+      // Cerrar sesión del cliente automáticamente y limpiar almacenamiento
+      cerrarSesionCliente();
+      
       setSolicitado(true);
     } catch (e) {
       console.error('Error al solicitar cuenta:', e);
@@ -79,52 +91,83 @@ export default function PaginaPago() {
   if (solicitado) {
     return (
       <div style={{ minHeight: '100vh', background: '#121214', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, color: '#ffffff' }}>
-        <div style={{ textAlign: 'center', maxWidth: 360, animation: 'fadeIn 400ms ease both' }}>
+        <div style={{ textAlign: 'center', maxWidth: 400, animation: 'fadeIn 400ms ease both' }}>
+          {/* Badge de Sesión Cerrada */}
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            background: 'rgba(239, 68, 68, 0.15)',
+            border: '1px solid rgba(239, 68, 68, 0.35)',
+            color: '#f87171',
+            padding: '6px 14px',
+            borderRadius: '20px',
+            fontSize: '0.8rem',
+            fontWeight: 700,
+            marginBottom: '20px',
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em'
+          }}>
+            <Lock size={13} />
+            Sesión Cerrada Automáticamente
+          </div>
+
           <div style={{
             width: 80, height: 80, borderRadius: '50%',
             background: 'rgba(229, 169, 60, 0.15)', border: '2px solid #e5a93c',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             margin: '0 auto 20px',
-            animation: 'brillar 2s ease infinite',
+            boxShadow: '0 0 24px rgba(229, 169, 60, 0.35)',
           }}>
-            <Sparkles size={40} color="#e5a93c" />
+            <CheckCircle2 size={40} color="#e5a93c" />
           </div>
+
           <h2 style={{ fontFamily: 'var(--fuente-titular, sans-serif)', fontSize: '1.8rem', color: '#ffffff', marginBottom: 10 }}>
             ¡Cuenta solicitada!
           </h2>
-          <p style={{ color: '#8f9098', marginBottom: 20, lineHeight: 1.6, fontSize: '0.95rem' }}>
-            Un mesero se acercará a la <strong>{mesa?.nombre}</strong> con tu cuenta para cobrar en <strong>{metodo === 'efectivo' ? 'Efectivo' : 'Transferencia'}</strong>.
+          <p style={{ color: '#a1a1aa', marginBottom: 20, lineHeight: 1.6, fontSize: '0.95rem' }}>
+            Tu sesión en la <strong>{mesa?.nombre || 'Mesa'}</strong> ha finalizado. Un mesero se acercará en breve para recibir tu pago en <strong>{metodo === 'efectivo' ? 'Efectivo' : 'Transferencia'}</strong>.
           </p>
 
           <div style={{
             background: '#19191d',
             border: '1px solid #27272e',
             borderRadius: '16px',
-            padding: '16px',
-            marginBottom: '24px',
+            padding: '20px',
+            marginBottom: '20px',
             textAlign: 'center',
           }}>
-            <div style={{ fontSize: '0.8rem', color: '#8f9098', textTransform: 'uppercase', fontWeight: 700 }}>TOTAL A PAGAR</div>
-            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#e5a93c', marginTop: '4px', fontFamily: 'var(--fuente-titular, sans-serif)' }}>
+            <div style={{ fontSize: '0.78rem', color: '#8f9098', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.05em' }}>
+              TOTAL A PAGAR
+            </div>
+            <div style={{ fontSize: '2rem', fontWeight: 800, color: '#e5a93c', marginTop: '6px', fontFamily: 'var(--fuente-titular, sans-serif)' }}>
               {formatearPrecio(totalAPagar)}
             </div>
+            {pedidos.length > 0 && (
+              <div style={{ fontSize: '0.82rem', color: '#71717a', marginTop: '8px' }}>
+                {pedidos.length} pedido{pedidos.length !== 1 ? 's' : ''} registrado{pedidos.length !== 1 ? 's' : ''}
+              </div>
+            )}
           </div>
 
-          <Link
-            to={`/mesa/${codigoQr}`}
-            style={{
-              display: 'block',
-              background: '#e5a93c',
-              color: '#121214',
-              padding: '14px',
-              borderRadius: '16px',
-              fontWeight: 800,
-              textDecoration: 'none',
-              fontSize: '1rem',
-            }}
-          >
-            Volver al menú
-          </Link>
+          <div style={{
+            background: 'rgba(255, 255, 255, 0.03)',
+            border: '1px dashed #2e2e38',
+            borderRadius: '14px',
+            padding: '14px',
+            fontSize: '0.85rem',
+            color: '#8f9098',
+            lineHeight: 1.5,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            textAlign: 'left'
+          }}>
+            <ShieldCheck size={24} color="#e5a93c" style={{ flexShrink: 0 }} />
+            <span>
+              La mesa ha sido bloqueada para nuevos pedidos mientras se completa el cobro. ¡Muchas gracias por visitarnos!
+            </span>
+          </div>
         </div>
       </div>
     );

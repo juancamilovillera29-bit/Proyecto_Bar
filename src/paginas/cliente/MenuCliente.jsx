@@ -3,7 +3,7 @@
 // ============================================
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Search, Clock } from 'lucide-react';
+import { Search, Clock, Lock, Receipt } from 'lucide-react';
 import { TarjetaProducto } from '../../componentes/cliente/TarjetaProducto.jsx';
 import { ResumenCarrito } from '../../componentes/cliente/ResumenCarrito.jsx';
 import { CargandoSpinner } from '../../componentes/comunes/CargandoSpinner.jsx';
@@ -16,6 +16,7 @@ export default function MenuCliente() {
   const { codigoQr } = useParams();
   const { establecerMesa } = useCarrito();
   const [mesa, setMesa]           = useState(null);
+  const [cuenta, setCuenta]       = useState(null);
   const [productos, setProductos] = useState([]);
   const [categoriaActiva, setCategoriaActiva] = useState('todos');
   const [busqueda, setBusqueda]   = useState('');
@@ -33,10 +34,13 @@ export default function MenuCliente() {
         setMesa(mesaDatos);
         setProductos(productosDatos || []);
 
-        // Obtener o crear cuenta de la mesa
-        let cuenta = await obtenerCuentaActivaDeMesa(mesaDatos.id);
-        if (!cuenta) cuenta = await abrirCuenta(mesaDatos.id);
-        establecerMesa(mesaDatos.id, cuenta?.id || null);
+        // Obtener o crear cuenta de la mesa si no está pendiente de pago
+        let cuentaActiva = await obtenerCuentaActivaDeMesa(mesaDatos.id);
+        if (!cuentaActiva && mesaDatos.estado !== 'pendiente_pago') {
+          cuentaActiva = await abrirCuenta(mesaDatos.id);
+        }
+        setCuenta(cuentaActiva);
+        establecerMesa(mesaDatos.id, cuentaActiva?.id || null);
       } catch (e) {
         setError('Error al cargar el menú');
       } finally {
@@ -66,6 +70,65 @@ export default function MenuCliente() {
       </div>
     </div>
   );
+
+  if (mesa?.estado === 'pendiente_pago' || cuenta?.estado === 'pendiente_pago') {
+    return (
+      <div style={{ minHeight: '100vh', background: '#121214', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, color: '#ffffff' }}>
+        <div style={{ textAlign: 'center', maxWidth: 380, animation: 'fadeIn 400ms ease both' }}>
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            background: 'rgba(239, 68, 68, 0.15)',
+            border: '1px solid rgba(239, 68, 68, 0.35)',
+            color: '#f87171',
+            padding: '6px 14px',
+            borderRadius: '20px',
+            fontSize: '0.8rem',
+            fontWeight: 700,
+            marginBottom: '20px',
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em'
+          }}>
+            <Lock size={13} />
+            Sesión Cerrada
+          </div>
+
+          <div style={{
+            width: 76, height: 76, borderRadius: '50%',
+            background: 'rgba(229, 169, 60, 0.15)', border: '2px solid #e5a93c',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            margin: '0 auto 20px',
+          }}>
+            <Receipt size={36} color="#e5a93c" />
+          </div>
+
+          <h2 style={{ fontFamily: 'var(--fuente-titular, sans-serif)', fontSize: '1.6rem', color: '#ffffff', marginBottom: 10 }}>
+            Cuenta en proceso de pago
+          </h2>
+          <p style={{ color: '#8f9098', marginBottom: 24, lineHeight: 1.6, fontSize: '0.92rem' }}>
+            La sesión para la <strong>{mesa?.nombre}</strong> fue cerrada porque ya se solicitó la cuenta. Un mesero está en camino para cobrar.
+          </p>
+
+          <Link
+            to={`/mesa/${codigoQr}/pago`}
+            style={{
+              display: 'block',
+              background: '#e5a93c',
+              color: '#121214',
+              padding: '14px',
+              borderRadius: '16px',
+              fontWeight: 800,
+              textDecoration: 'none',
+              fontSize: '0.95rem',
+            }}
+          >
+            Ver detalle de la cuenta
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   const productosFiltrados = productos.filter(p => {
     const coincideTexto = p.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||

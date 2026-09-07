@@ -70,6 +70,12 @@ function reductorCarrito(estado, accion) {
     case 'VACIAR_CARRITO':
       nuevoEstado = { ...estado, articulos: [] };
       break;
+    case 'CERRAR_SESION_CLIENTE':
+      nuevoEstado = { articulos: [], mesaId: null, cuentaId: null };
+      try {
+        localStorage.removeItem(STORAGE_KEY);
+      } catch (e) {}
+      return nuevoEstado;
     case 'ESTABLECER_MESA':
       nuevoEstado = { ...estado, mesaId: accion.mesaId, cuentaId: accion.cuentaId };
       break;
@@ -110,6 +116,10 @@ export function ProveedorCarrito({ children }) {
     despachar({ tipo: 'VACIAR_CARRITO' });
   }, []);
 
+  const cerrarSesionCliente = useCallback(() => {
+    despachar({ tipo: 'CERRAR_SESION_CLIENTE' });
+  }, []);
+
   const establecerMesa = useCallback((mesaId, cuentaId = null) => {
     despachar({ tipo: 'ESTABLECER_MESA', mesaId, cuentaId });
   }, []);
@@ -128,6 +138,7 @@ export function ProveedorCarrito({ children }) {
     quitarArticulo,
     eliminarArticulo,
     vaciarCarrito,
+    cerrarSesionCliente,
     establecerMesa,
   };
 
