@@ -23,15 +23,24 @@ export default function Inventario() {
   const [guardando, setGuardando]     = useState(false);
   const [formulario, setFormulario]   = useState({ producto_id: '', tipo: 'entrada', cantidad: '', motivo: '' });
 
-  useEffect(() => { cargarDatos(); }, []);
+  useEffect(() => {
+    cargarDatos();
+    const intervalo = setInterval(() => {
+      cargarDatos(true);
+    }, 4000);
+    return () => clearInterval(intervalo);
+  }, []);
 
-  async function cargarDatos() {
-    setCargando(true);
-    const [inv, mov, prods] = await Promise.all([obtenerInventario(), obtenerMovimientos(), obtenerProductos()]);
-    setInventario(inv);
-    setMovimientos(mov);
-    setProductos(prods);
-    setCargando(false);
+  async function cargarDatos(esRecarga = false) {
+    if (!esRecarga) setCargando(true);
+    try {
+      const [inv, mov, prods] = await Promise.all([obtenerInventario(), obtenerMovimientos(), obtenerProductos()]);
+      setInventario(inv || []);
+      setMovimientos(mov || []);
+      setProductos(prods || []);
+    } finally {
+      if (!esRecarga) setCargando(false);
+    }
   }
 
   async function guardarMovimiento(e) {

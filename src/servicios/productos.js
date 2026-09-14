@@ -8,18 +8,67 @@ export async function obtenerProductos(soloActivos = false) {
   if (!supabaseConfigurado) {
     return soloActivos ? productosMock.filter(p => p.activo) : productosMock;
   }
-  let consulta = supabase.from('productos').select('*').order('nombre');
+  let consulta = supabase
+    .from('productos')
+    .select('*, inventario(stock_actual, stock_minimo)')
+    .order('nombre');
   if (soloActivos) consulta = consulta.eq('activo', true);
   const { data, error } = await consulta;
-  if (error) throw error;
-  return data;
+
+  if (error) {
+    // Si la relación anidada falla, fallback a productos directo
+    let fallback = supabase.from('productos').select('*').order('nombre');
+    if (soloActivos) fallback = fallback.eq('activo', true);
+    const { data: dataFallback, error: errorFallback } = await fallback;
+    if (errorFallback) throw errorFallback;
+    return dataFallback;
+  }
+
+  // Mapear stock real desde la tabla inventario y corregir discrepancias
+  const productosMapeados = (data || []).map(p => {
+    const inv = Array.isArray(p.inventario) ? p.inventario[0] : p.inventario;
+    const tieneInv = inv && typeof inv.stock_actual === 'number';
+    const stockReal = tieneInv ? inv.stock_actual : p.stock;
+    const stockMinimoReal = (inv && typeof inv.stock_minimo === 'number') ? inv.stock_minimo : (p.stock_minimo || 5);
+
+    // Si hay discrepancia en la base de datos, corregir la columna stock en productos
+    if (tieneInv && p.stock !== stockReal) {
+      supabase.from('productos').update({ stock: stockReal }).eq('id', p.id).then(() => {});
+    }
+
+    return {
+      ...p,
+      stock: stockReal,
+      stock_minimo: stockMinimoReal,
+    };
+  });
+
+  return productosMapeados;
 }
 
 export async function obtenerProductoPorId(id) {
   if (!supabaseConfigurado) return productosMock.find(p => p.id === id) || null;
-  const { data, error } = await supabase.from('productos').select('*').eq('id', id).single();
-  if (error) throw error;
-  return data;
+  const { data, error } = await supabase
+    .from('productos')
+    .select('*, inventario(stock_actual, stock_minimo)')
+    .eq('id', id)
+    .single();
+
+  if (error) {
+    const { data: d, error: e } = await supabase.from('productos').select('*').eq('id', id).single();
+    if (e) throw e;
+    return d;
+  }
+
+  const inv = Array.isArray(data.inventario) ? data.inventario[0] : data.inventario;
+  const stockReal = (inv && typeof inv.stock_actual === 'number') ? inv.stock_actual : data.stock;
+  const stockMinimoReal = (inv && typeof inv.stock_minimo === 'number') ? inv.stock_minimo : (data.stock_minimo || 5);
+
+  return {
+    ...data,
+    stock: stockReal,
+    stock_minimo: stockMinimoReal,
+  };
 }
 
 export async function crearProducto(datos) {
@@ -31,11 +80,11 @@ export async function crearProducto(datos) {
   const { data, error } = await supabase.from('productos').insert(datos).select().single();
   if (error) throw error;
   // Crear registro en inventario al crear producto
-  await supabase.from('inventario').insert({
+  await supabase.from('inventario').upsert({
     producto_id: data.id,
     stock_actual: datos.stock || 0,
     stock_minimo: datos.stock_minimo || 5,
-  });
+  }, { onConflict: 'producto_id' });
   return data;
 }
 
@@ -58,12 +107,14 @@ export async function actualizarProducto(id, datos) {
   // Si se actualizó el stock o stock_minimo, sincronizar inventario
   if (datos.stock !== undefined || datos.stock_minimo !== undefined) {
     try {
-      const updateInv = {};
+      const updateInv = {
+        producto_id: id,
+        actualizado_en: new Date().toISOString(),
+      };
       if (datos.stock !== undefined) updateInv.stock_actual = datos.stock;
       if (datos.stock_minimo !== undefined) updateInv.stock_minimo = datos.stock_minimo;
-      updateInv.actualizado_en = new Date().toISOString();
 
-      await supabase.from('inventario').update(updateInv).eq('producto_id', id);
+      await supabase.from('inventario').upsert(updateInv, { onConflict: 'producto_id' });
     } catch (e) {
       console.warn('Error al sincronizar inventario tras actualizar producto:', e);
     }
