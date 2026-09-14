@@ -33,13 +33,20 @@ function reductorCarrito(estado, accion) {
   let nuevoEstado = estado;
   switch (accion.tipo) {
     case 'AGREGAR_ARTICULO': {
+      const stockMaximo = typeof accion.producto.stock === 'number' ? accion.producto.stock : parseInt(accion.producto.stock ?? '9999', 10);
+      if (stockMaximo <= 0) {
+        return estado; // No hay stock disponible
+      }
       const existe = estado.articulos.find(a => a.producto.id === accion.producto.id);
       if (existe) {
+        if (existe.cantidad >= stockMaximo) {
+          return estado; // Ya se alcanzó el stock máximo disponible
+        }
         nuevoEstado = {
           ...estado,
           articulos: estado.articulos.map(a =>
             a.producto.id === accion.producto.id
-              ? { ...a, cantidad: a.cantidad + 1 }
+              ? { ...a, cantidad: a.cantidad + 1, producto: { ...a.producto, ...accion.producto } }
               : a
           ),
         };

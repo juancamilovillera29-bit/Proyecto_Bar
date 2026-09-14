@@ -18,13 +18,22 @@ export default function Productos() {
   const [formulario, setFormulario] = useState(productoVacio);
   const [guardando, setGuardando]   = useState(false);
 
-  useEffect(() => { cargarProductos(); }, []);
+  useEffect(() => {
+    cargarProductos();
+    const intervalo = setInterval(() => {
+      cargarProductos(true);
+    }, 4000);
+    return () => clearInterval(intervalo);
+  }, []);
 
-  async function cargarProductos() {
-    setCargando(true);
-    const datos = await obtenerProductos();
-    setProductos(datos);
-    setCargando(false);
+  async function cargarProductos(esRecarga = false) {
+    if (!esRecarga) setCargando(true);
+    try {
+      const datos = await obtenerProductos();
+      setProductos(datos || []);
+    } finally {
+      if (!esRecarga) setCargando(false);
+    }
   }
 
   function abrirModal(producto = null) {
@@ -39,10 +48,10 @@ export default function Productos() {
     try {
       const datos = {
         ...formulario,
-        precio_venta: parseFloat(formulario.precio_venta),
-        costo: parseFloat(formulario.costo),
-        stock: parseInt(formulario.stock),
-        stock_minimo: parseInt(formulario.stock_minimo),
+        precio_venta: parseFloat(formulario.precio_venta || 0),
+        costo: parseFloat(formulario.costo || 0),
+        stock: parseInt(formulario.stock || 0, 10),
+        stock_minimo: parseInt(formulario.stock_minimo || 5, 10),
       };
       if (productoEditando) {
         await actualizarProducto(productoEditando.id, datos);
@@ -145,13 +154,27 @@ export default function Productos() {
                 </td>
                 <td>${Number(producto.costo).toFixed(2)}</td>
                 <td>
-                  <span style={{
-                    fontWeight: 700,
-                    color: producto.stock <= producto.stock_minimo ? 'var(--rojo-claro)' : 'var(--texto-primario)',
-                  }}>
-                    {producto.stock}
-                  </span>
-                  <span style={{ color: 'var(--texto-muted)', fontSize: 'var(--texto-xs)' }}> / {producto.stock_minimo} mín.</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{
+                      fontWeight: 700,
+                      color: producto.stock <= 0 ? 'var(--rojo-error)' : producto.stock <= producto.stock_minimo ? 'var(--amarillo-advertencia)' : 'var(--texto-primario)',
+                    }}>
+                      {producto.stock}
+                    </span>
+                    <span style={{ color: 'var(--texto-muted)', fontSize: 'var(--texto-xs)' }}> / {producto.stock_minimo} mín.</span>
+                    {producto.stock <= 0 && (
+                      <span style={{
+                        background: 'rgba(239, 68, 68, 0.2)',
+                        color: '#f87171',
+                        fontSize: '0.65rem',
+                        fontWeight: 700,
+                        padding: '1px 6px',
+                        borderRadius: '6px',
+                      }}>
+                        Agotado
+                      </span>
+                    )}
+                  </div>
                 </td>
                 <td>
                   <button

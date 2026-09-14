@@ -32,7 +32,28 @@ export async function obtenerPedidos(filtros = {}) {
 export async function crearPedido(datos) {
   const { detalles, ...datosPedido } = datos;
 
+  if (!detalles || detalles.length === 0) {
+    throw new Error('El pedido debe contener al menos un producto.');
+  }
+
   if (!supabaseConfigurado) {
+    // Validar stock en mock
+    for (const d of detalles) {
+      const prod = productosMock.find(p => p.id === d.producto_id);
+      const stockDisponible = prod ? (typeof prod.stock === 'number' ? prod.stock : parseInt(prod.stock ?? '0', 10)) : 0;
+      if (!prod || stockDisponible < d.cantidad) {
+        throw new Error(`Stock insuficiente para "${prod?.nombre || 'Producto'}". Disponibles: ${stockDisponible}, solicitados: ${d.cantidad}`);
+      }
+    }
+
+    // Descontar stock en mock
+    for (const d of detalles) {
+      const prod = productosMock.find(p => p.id === d.producto_id);
+      if (prod) {
+        prod.stock = Math.max(0, prod.stock - d.cantidad);
+      }
+    }
+
     const nuevoPedido = {
       ...datosPedido,
       id: `ped-${Date.now()}`,
@@ -46,7 +67,24 @@ export async function crearPedido(datos) {
     return nuevoPedido;
   }
 
-  // 1. Verificar o crear una cuenta activa (abierta) para la mesa
+  // 1. Validar stock en Supabase antes de crear el pedido
+  const idsProductos = detalles.map(d => d.producto_id);
+  const { data: prodsBD, error: errorProds } = await supabase
+    .from('productos')
+    .select('id, nombre, stock')
+    .in('id', idsProductos);
+
+  if (errorProds) throw errorProds;
+
+  for (const d of detalles) {
+    const p = prodsBD?.find(item => item.id === d.producto_id);
+    const stockActual = p ? (typeof p.stock === 'number' ? p.stock : parseInt(p.stock ?? '0', 10)) : 0;
+    if (!p || stockActual < d.cantidad) {
+      throw new Error(`Stock insuficiente para "${p?.nombre || 'Producto'}". Disponibles: ${stockActual}, solicitados: ${d.cantidad}`);
+    }
+  }
+
+  // 2. Verificar o crear una cuenta activa (abierta) para la mesa
   let idCuentaValida = datosPedido.cuenta_id;
   try {
     if (idCuentaValida) {
@@ -99,7 +137,7 @@ export async function crearPedido(datos) {
     cuenta_id: idCuentaValida || null,
   };
 
-  // 2. Crear pedido
+  // 3. Crear pedido
   const { data: pedido, error: errorPedido } = await supabase
     .from('pedidos')
     .insert(payloadPedido)
@@ -107,7 +145,7 @@ export async function crearPedido(datos) {
     .single();
   if (errorPedido) throw errorPedido;
 
-  // 3. Crear detalles
+  // 4. Crear detalles
   const detallesConId = detalles.map(d => ({ ...d, pedido_id: pedido.id }));
   const { error: errorDetalles } = await supabase.from('detalles_pedido').insert(detallesConId);
   if (errorDetalles) {
@@ -115,7 +153,34 @@ export async function crearPedido(datos) {
     throw errorDetalles;
   }
 
-  // 4. Actualizar mesa a ocupada automáticamente
+  // 5. Descontar stock en la tabla productos y registrar movimientos de inventario
+  try {
+    for (const d of detalles) {
+      const p = prodsBD?.find(item => item.id === d.producto_id);
+      const stockActual = p ? (typeof p.stock === 'number' ? p.stock : parseInt(p.stock ?? '0', 10)) : 0;
+      const nuevoStock = Math.max(0, stockActual - d.cantidad);
+      
+      // Actualizar tabla productos
+      await supabase
+        .from('productos')
+        .update({ stock: nuevoStock })
+        .eq('id', d.producto_id);
+
+      // Registrar movimiento de inventario (actualiza inventario por trigger o update)
+      await supabase
+        .from('movimientos_inventario')
+        .insert({
+          producto_id: d.producto_id,
+          tipo: 'salida',
+          cantidad: d.cantidad,
+          motivo: `Pedido mesa (ID: ${pedido.id.slice(0, 8)})`,
+        });
+    }
+  } catch (errStock) {
+    console.warn('Advertencia al descontar stock en base de datos:', errStock);
+  }
+
+  // 6. Actualizar mesa a ocupada automáticamente
   if (datosPedido.mesa_id) {
     try {
       await supabase
@@ -127,7 +192,7 @@ export async function crearPedido(datos) {
     }
   }
 
-  // 5. Actualizar el total acumulado en la tabla cuentas (columna 'total')
+  // 7. Actualizar el total acumulado en la tabla cuentas (columna 'total')
   const totalPedido = detalles.reduce((s, d) => s + (Number(d.precio_unitario) || 0) * (Number(d.cantidad) || 1), 0);
   if (idCuentaValida) {
     try {
@@ -154,11 +219,34 @@ export async function actualizarEstadoPedido(id, estado) {
   if (!supabaseConfigurado) {
     const pedido = pedidosMock.find(p => p.id === id);
     if (pedido) {
+      const estadoAnterior = pedido.estado;
       pedido.estado = estado;
       pedido.actualizado_en = new Date().toISOString();
+
+      // Si se cancela, devolver stock
+      if (estado === 'cancelado' && estadoAnterior !== 'cancelado' && pedido.detalles) {
+        for (const d of pedido.detalles) {
+          const prod = productosMock.find(p => p.id === d.producto_id);
+          if (prod) {
+            prod.stock = (prod.stock || 0) + (d.cantidad || 1);
+          }
+        }
+      }
     }
     return pedido;
   }
+
+  // Obtener estado anterior y detalles si se va a cancelar
+  let pedidoPrevio = null;
+  if (estado === 'cancelado') {
+    const { data: pData } = await supabase
+      .from('pedidos')
+      .select('estado, detalles:detalles_pedido(*)')
+      .eq('id', id)
+      .single();
+    pedidoPrevio = pData;
+  }
+
   const { data, error } = await supabase
     .from('pedidos')
     .update({ estado, actualizado_en: new Date().toISOString() })
@@ -166,5 +254,38 @@ export async function actualizarEstadoPedido(id, estado) {
     .select()
     .single();
   if (error) throw error;
+
+  // Si se canceló el pedido, reponer stock
+  if (estado === 'cancelado' && pedidoPrevio && pedidoPrevio.estado !== 'cancelado' && pedidoPrevio.detalles) {
+    try {
+      for (const d of pedidoPrevio.detalles) {
+        const { data: prodData } = await supabase
+          .from('productos')
+          .select('stock')
+          .eq('id', d.producto_id)
+          .single();
+        
+        const stockActual = prodData ? (typeof prodData.stock === 'number' ? prodData.stock : parseInt(prodData.stock ?? '0', 10)) : 0;
+        const nuevoStock = stockActual + (d.cantidad || 1);
+
+        await supabase
+          .from('productos')
+          .update({ stock: nuevoStock })
+          .eq('id', d.producto_id);
+
+        await supabase
+          .from('movimientos_inventario')
+          .insert({
+            producto_id: d.producto_id,
+            tipo: 'entrada',
+            cantidad: d.cantidad || 1,
+            motivo: `Cancelación pedido (ID: ${id.slice(0, 8)})`,
+          });
+      }
+    } catch (eReponer) {
+      console.warn('Error al reponer stock tras cancelar pedido:', eReponer);
+    }
+  }
+
   return data;
 }

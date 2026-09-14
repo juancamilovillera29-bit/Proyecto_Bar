@@ -202,25 +202,63 @@ BEGIN
     SET stock_actual = stock_actual + NEW.cantidad,
         actualizado_en = NOW()
     WHERE producto_id = NEW.producto_id;
+
+    UPDATE productos
+    SET stock = stock + NEW.cantidad
+    WHERE id = NEW.producto_id;
+
   ELSIF NEW.tipo = 'salida' THEN
     UPDATE inventario
     SET stock_actual = GREATEST(0, stock_actual - NEW.cantidad),
         actualizado_en = NOW()
     WHERE producto_id = NEW.producto_id;
+
+    UPDATE productos
+    SET stock = GREATEST(0, stock - NEW.cantidad)
+    WHERE id = NEW.producto_id;
+
   ELSIF NEW.tipo = 'ajuste' THEN
     UPDATE inventario
     SET stock_actual = NEW.cantidad,
         actualizado_en = NOW()
     WHERE producto_id = NEW.producto_id;
+
+    UPDATE productos
+    SET stock = NEW.cantidad
+    WHERE id = NEW.producto_id;
   END IF;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_movimiento_inventario ON movimientos_inventario;
 CREATE TRIGGER trigger_movimiento_inventario
 AFTER INSERT ON movimientos_inventario
 FOR EACH ROW EXECUTE FUNCTION actualizar_inventario_por_movimiento();
+
+-- Trigger para validar que haya stock suficiente antes de agregar un detalle de pedido
+CREATE OR REPLACE FUNCTION validar_stock_disponible()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_stock_actual INTEGER;
+  v_nombre_prod TEXT;
+BEGIN
+  SELECT stock, nombre INTO v_stock_actual, v_nombre_prod
+  FROM productos
+  WHERE id = NEW.producto_id;
+
+  IF v_stock_actual IS NOT NULL AND v_stock_actual < NEW.cantidad THEN
+    RAISE EXCEPTION 'Stock insuficiente para el producto "%". Disponibles: %, Solicitados: %', v_nombre_prod, v_stock_actual, NEW.cantidad;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_validar_stock_pedido ON detalles_pedido;
+CREATE TRIGGER trigger_validar_stock_pedido
+BEFORE INSERT ON detalles_pedido
+FOR EACH ROW EXECUTE FUNCTION validar_stock_disponible();
 
 -- ============================================
 -- POLÍTICAS RLS (Row Level Security)

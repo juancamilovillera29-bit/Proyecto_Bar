@@ -24,12 +24,14 @@ export default function MenuCliente() {
   const [error, setError]         = useState(null);
 
   useEffect(() => {
+    let montado = true;
     async function inicializar() {
       try {
         const [mesaDatos, productosDatos] = await Promise.all([
           obtenerMesaPorCodigo(codigoQr),
           obtenerProductos(true),
         ]);
+        if (!montado) return;
         if (!mesaDatos) { setError('Mesa no encontrada'); setCargando(false); return; }
         setMesa(mesaDatos);
         setProductos(productosDatos || []);
@@ -39,15 +41,31 @@ export default function MenuCliente() {
         if (!cuentaActiva && mesaDatos.estado !== 'pendiente_pago') {
           cuentaActiva = await abrirCuenta(mesaDatos.id);
         }
+        if (!montado) return;
         setCuenta(cuentaActiva);
         establecerMesa(mesaDatos.id, cuentaActiva?.id || null);
       } catch (e) {
-        setError('Error al cargar el menú');
+        if (montado) setError('Error al cargar el menú');
       } finally {
-        setCargando(false);
+        if (montado) setCargando(false);
       }
     }
     inicializar();
+
+    // Polling cada 4s para actualizar stock en tiempo real
+    const intervalo = setInterval(async () => {
+      try {
+        const productosActualizados = await obtenerProductos(true);
+        if (montado && productosActualizados) {
+          setProductos(productosActualizados);
+        }
+      } catch (e) {}
+    }, 4000);
+
+    return () => {
+      montado = false;
+      clearInterval(intervalo);
+    };
   }, [codigoQr]);
 
   // Obtener lista única de categorías

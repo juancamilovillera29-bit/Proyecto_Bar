@@ -162,12 +162,6 @@ export default function Mesas() {
         metodo_pago: metodoPago,
       });
 
-      // Descontar stock del inventario por cada producto consumido
-      await descontarStockPorPedidos(
-        pedidosMesa,
-        `Venta — ${mesaSeleccionada.nombre}`
-      );
-
       await cerrarCuenta(cuenta.id);
       await actualizarEstadoMesa(mesaSeleccionada.id, 'disponible');
       await cargarDatos();

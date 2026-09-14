@@ -2,7 +2,7 @@
 // Servicio: Productos
 // ============================================
 import { supabase, supabaseConfigurado } from '../config/supabase.js';
-import { productosMock } from '../datos/datosMock.js';
+import { productosMock, inventarioMock } from '../datos/datosMock.js';
 
 export async function obtenerProductos(soloActivos = false) {
   if (!supabaseConfigurado) {
@@ -42,11 +42,33 @@ export async function crearProducto(datos) {
 export async function actualizarProducto(id, datos) {
   if (!supabaseConfigurado) {
     const idx = productosMock.findIndex(p => p.id === id);
-    if (idx !== -1) Object.assign(productosMock[idx], datos);
+    if (idx !== -1) {
+      Object.assign(productosMock[idx], datos);
+      const inv = inventarioMock.find(i => i.producto_id === id);
+      if (inv) {
+        if (datos.stock !== undefined) inv.stock_actual = datos.stock;
+        if (datos.stock_minimo !== undefined) inv.stock_minimo = datos.stock_minimo;
+      }
+    }
     return productosMock[idx];
   }
   const { data, error } = await supabase.from('productos').update(datos).eq('id', id).select().single();
   if (error) throw error;
+
+  // Si se actualizó el stock o stock_minimo, sincronizar inventario
+  if (datos.stock !== undefined || datos.stock_minimo !== undefined) {
+    try {
+      const updateInv = {};
+      if (datos.stock !== undefined) updateInv.stock_actual = datos.stock;
+      if (datos.stock_minimo !== undefined) updateInv.stock_minimo = datos.stock_minimo;
+      updateInv.actualizado_en = new Date().toISOString();
+
+      await supabase.from('inventario').update(updateInv).eq('producto_id', id);
+    } catch (e) {
+      console.warn('Error al sincronizar inventario tras actualizar producto:', e);
+    }
+  }
+
   return data;
 }
 

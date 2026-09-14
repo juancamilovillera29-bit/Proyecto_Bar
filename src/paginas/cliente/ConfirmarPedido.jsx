@@ -10,6 +10,8 @@ import { obtenerMesaPorCodigo } from '../../servicios/mesas.js';
 import { obtenerCuentaActivaDeMesa, abrirCuenta } from '../../servicios/cuentas.js';
 import { formatearPrecio } from '../../componentes/cliente/TarjetaProducto.jsx';
 
+import { obtenerProductos } from '../../servicios/productos.js';
+
 export default function ConfirmarPedido() {
   const { codigoQr } = useParams();
   const { articulos, subtotal, mesaId, cuentaId, vaciarCarrito, carritoVacio, establecerMesa, agregarArticulo, quitarArticulo } = useCarrito();
@@ -18,26 +20,55 @@ export default function ConfirmarPedido() {
   const [pedidoEnviado, setPedidoEnviado] = useState(false);
   const [errorEnvio, setErrorEnvio] = useState(null);
   const [mesaActual, setMesaActual] = useState(null);
+  const [productosFrescos, setProductosFrescos] = useState([]);
 
-  // Asegurar que mesaId y cuentaId estén disponibles
+  // Asegurar que mesaId y cuentaId estén disponibles y cargar stock fresco
   useEffect(() => {
+    let montado = true;
+
     async function asegurarMesaYCuenta() {
       try {
-        const mesaDatos = await obtenerMesaPorCodigo(codigoQr);
+        const [mesaDatos, prods] = await Promise.all([
+          obtenerMesaPorCodigo(codigoQr),
+          obtenerProductos(),
+        ]);
+        if (!montado) return;
+        if (prods) setProductosFrescos(prods);
         if (mesaDatos) {
           setMesaActual(mesaDatos);
           let cuenta = await obtenerCuentaActivaDeMesa(mesaDatos.id);
           if (!cuenta && mesaDatos.estado !== 'pendiente_pago') {
             cuenta = await abrirCuenta(mesaDatos.id);
           }
-          establecerMesa(mesaDatos.id, cuenta?.id || null);
+          if (montado) establecerMesa(mesaDatos.id, cuenta?.id || null);
         }
       } catch (e) {
         console.error('Error al resolver mesa en checkout:', e);
       }
     }
     asegurarMesaYCuenta();
+
+    const intervalo = setInterval(async () => {
+      try {
+        const prods = await obtenerProductos();
+        if (montado && prods) setProductosFrescos(prods);
+      } catch (e) {}
+    }, 4000);
+
+    return () => {
+      montado = false;
+      clearInterval(intervalo);
+    };
   }, [codigoQr]);
+
+  // Verificar si algún artículo en el carrito excede el stock actual
+  const itemsExcedidos = articulos.filter(item => {
+    const prodFresco = productosFrescos.find(p => p.id === item.producto.id);
+    const stockActual = prodFresco ? (typeof prodFresco.stock === 'number' ? prodFresco.stock : parseInt(prodFresco.stock ?? '0', 10)) : (item.producto.stock ?? 0);
+    return item.cantidad > stockActual;
+  });
+
+  const hayErrorStock = itemsExcedidos.length > 0;
 
   async function manejarConfirmar(e) {
     if (e) e.preventDefault();
@@ -50,6 +81,18 @@ export default function ConfirmarPedido() {
     setErrorEnvio(null);
 
     try {
+      // 1. Validar stock en tiempo real antes de enviar
+      const productosFrescos = await obtenerProductos();
+      for (const item of articulos) {
+        const prodFresco = productosFrescos.find(p => p.id === item.producto.id);
+        const stockActual = prodFresco ? (typeof prodFresco.stock === 'number' ? prodFresco.stock : parseInt(prodFresco.stock ?? '0', 10)) : 0;
+        if (!prodFresco || stockActual < item.cantidad) {
+          throw new Error(
+            `No hay suficiente stock para "${item.producto.nombre}". Disponible: ${stockActual} unidad(es), solicitaste: ${item.cantidad}.`
+          );
+        }
+      }
+
       let idMesa = mesaId;
       let idCuenta = cuentaId;
 
@@ -258,6 +301,25 @@ export default function ConfirmarPedido() {
           </div>
         )}
 
+        {hayErrorStock && (
+          <div style={{
+            background: 'rgba(239, 68, 68, 0.18)',
+            border: '1px solid #ef4444',
+            borderRadius: '14px',
+            padding: '12px 16px',
+            color: '#fca5a5',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            fontSize: '0.88rem',
+          }}>
+            <AlertCircle size={20} color="#ef4444" style={{ flexShrink: 0 }} />
+            <span>
+              <strong>Stock insuficiente:</strong> Uno o más productos en tu pedido superan las existencias disponibles. Reduce la cantidad para poder enviar tu orden.
+            </span>
+          </div>
+        )}
+
         {carritoVacio ? (
           <div style={{ textAlign: 'center', padding: '60px 20px', color: '#8f9098' }}>
             <ShoppingBag size={48} color="#8f9098" style={{ margin: '0 auto 16px' }} />
@@ -294,118 +356,143 @@ export default function ConfirmarPedido() {
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {articulos.map(({ producto, cantidad }) => (
-                  <div
-                    key={producto.id}
-                    style={{
-                      background: '#19191d',
-                      borderRadius: '16px',
-                      padding: '12px 14px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '12px',
-                      border: '1px solid #27272e',
-                    }}
-                  >
-                    {/* Miniatura */}
-                    <div style={{
-                      width: '56px',
-                      height: '56px',
-                      borderRadius: '12px',
-                      background: '#121214',
-                      overflow: 'hidden',
-                      flexShrink: 0,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}>
-                      {producto.imagen_url ? (
-                        <img
-                          src={producto.imagen_url}
-                          alt={producto.nombre}
-                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                          onError={e => { e.target.style.display = 'none'; }}
-                        />
-                      ) : (
-                        <Wine size={22} color="#d49a37" />
-                      )}
-                    </div>
+                {articulos.map(({ producto, cantidad }) => {
+                  const prodFresco = productosFrescos.find(p => p.id === producto.id);
+                  const stockDisp = prodFresco ? (typeof prodFresco.stock === 'number' ? prodFresco.stock : parseInt(prodFresco.stock ?? '0', 10)) : (producto.stock ?? 0);
+                  const sinMasStock = cantidad >= stockDisp;
+                  const excedeStock = cantidad > stockDisp;
 
-                    {/* Nombre y Precio Unitario */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
+                  return (
+                    <div
+                      key={producto.id}
+                      style={{
+                        background: '#19191d',
+                        borderRadius: '16px',
+                        padding: '12px 14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        border: excedeStock ? '1px solid #ef4444' : '1px solid #27272e',
+                      }}
+                    >
+                      {/* Miniatura */}
                       <div style={{
-                        fontWeight: 700,
-                        fontSize: '0.98rem',
-                        color: '#ffffff',
-                        whiteSpace: 'nowrap',
+                        width: '56px',
+                        height: '56px',
+                        borderRadius: '12px',
+                        background: '#121214',
                         overflow: 'hidden',
-                        textOverflow: 'ellipsis',
+                        flexShrink: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
                       }}>
-                        {producto.nombre}
+                        {producto.imagen_url ? (
+                          <img
+                            src={producto.imagen_url}
+                            alt={producto.nombre}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            onError={e => { e.target.style.display = 'none'; }}
+                          />
+                        ) : (
+                          <Wine size={22} color="#d49a37" />
+                        )}
                       </div>
-                      <div style={{
-                        fontSize: '0.85rem',
-                        color: '#8f9098',
-                        marginTop: '2px',
-                      }}>
-                        {formatearPrecio(producto.precio_venta)}
-                      </div>
-                    </div>
 
-                    {/* Stepper Pill [ - 1 + ] */}
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      background: '#24242b',
-                      padding: '4px 10px',
-                      borderRadius: '20px',
-                      border: '1px solid #33333d',
-                    }}>
-                      <button
-                        type="button"
-                        onClick={() => quitarArticulo(producto.id)}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: '#d49a37',
-                          cursor: 'pointer',
+                      {/* Nombre y Precio Unitario */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{
+                          fontWeight: 700,
+                          fontSize: '0.98rem',
+                          color: '#ffffff',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}>
+                          {producto.nombre}
+                        </div>
+                        <div style={{
                           display: 'flex',
                           alignItems: 'center',
-                          justifyContent: 'center',
-                          padding: '2px',
-                        }}
-                      >
-                        <Minus size={14} strokeWidth={2.5} />
-                      </button>
-                      <span style={{
-                        color: '#ffffff',
-                        fontWeight: 700,
-                        fontSize: '0.95rem',
-                        minWidth: '16px',
-                        textAlign: 'center',
+                          gap: 8,
+                          marginTop: '2px',
+                        }}>
+                          <span style={{ fontSize: '0.85rem', color: '#8f9098' }}>
+                            {formatearPrecio(producto.precio_venta)}
+                          </span>
+                          <span style={{
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            color: excedeStock ? '#f87171' : '#9ca3af',
+                          }}>
+                            {stockDisp <= 0 ? '• Agotado' : `• Disp: ${stockDisp}`}
+                          </span>
+                        </div>
+                        {excedeStock && (
+                          <div style={{ fontSize: '0.72rem', color: '#f87171', fontWeight: 700, marginTop: 2 }}>
+                            ⚠️ Solicitaste más de lo disponible ({stockDisp})
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Stepper Pill [ - 1 + ] */}
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        background: '#24242b',
+                        padding: '4px 10px',
+                        borderRadius: '20px',
+                        border: '1px solid #33333d',
                       }}>
-                        {cantidad}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => agregarArticulo(producto)}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: '#e5a93c',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          padding: '2px',
-                        }}
-                      >
-                        <Plus size={14} strokeWidth={2.5} />
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => quitarArticulo(producto.id)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#d49a37',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: '2px',
+                          }}
+                        >
+                          <Minus size={14} strokeWidth={2.5} />
+                        </button>
+                        <span style={{
+                          color: excedeStock ? '#f87171' : '#ffffff',
+                          fontWeight: 700,
+                          fontSize: '0.95rem',
+                          minWidth: '16px',
+                          textAlign: 'center',
+                        }}>
+                          {cantidad}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => agregarArticulo(producto)}
+                          disabled={sinMasStock}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: sinMasStock ? '#52525b' : '#e5a93c',
+                            cursor: sinMasStock ? 'not-allowed' : 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: '2px',
+                            opacity: sinMasStock ? 0.4 : 1,
+                          }}
+                          title={sinMasStock ? 'Stock máximo alcanzado' : 'Aumentar'}
+                        >
+                          <Plus size={14} strokeWidth={2.5} />
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
@@ -498,10 +585,10 @@ export default function ConfirmarPedido() {
           <button
             type="button"
             onClick={manejarConfirmar}
-            disabled={enviando}
+            disabled={enviando || hayErrorStock}
             style={{
               width: '100%',
-              background: '#e5a93c',
+              background: hayErrorStock ? '#3f3f46' : '#e5a93c',
               border: 'none',
               borderRadius: '16px',
               padding: '16px 20px',
@@ -509,20 +596,22 @@ export default function ConfirmarPedido() {
               alignItems: 'center',
               justifyContent: 'center',
               gap: '8px',
-              color: '#121214',
-              cursor: enviando ? 'not-allowed' : 'pointer',
+              color: hayErrorStock ? '#a1a1aa' : '#121214',
+              cursor: (enviando || hayErrorStock) ? 'not-allowed' : 'pointer',
               fontWeight: 800,
-              fontSize: '1.1rem',
+              fontSize: '1.05rem',
               letterSpacing: '0.04em',
-              boxShadow: '0 8px 24px rgba(229, 169, 60, 0.35)',
-              opacity: enviando ? 0.7 : 1,
-              transition: 'transform 0.15s ease',
+              boxShadow: hayErrorStock ? 'none' : '0 8px 24px rgba(229, 169, 60, 0.35)',
+              opacity: (enviando || hayErrorStock) ? 0.75 : 1,
+              transition: 'all 0.15s ease',
             }}
-            onMouseDown={e => !enviando && (e.currentTarget.style.transform = 'scale(0.98)')}
-            onMouseUp={e => !enviando && (e.currentTarget.style.transform = 'scale(1)')}
+            onMouseDown={e => !(enviando || hayErrorStock) && (e.currentTarget.style.transform = 'scale(0.98)')}
+            onMouseUp={e => !(enviando || hayErrorStock) && (e.currentTarget.style.transform = 'scale(1)')}
           >
             {enviando ? (
               <span>ENVIANDO...</span>
+            ) : hayErrorStock ? (
+              <span>AJUSTA CANTIDADES (STOCK INSUFICIENTE)</span>
             ) : (
               <>
                 <span>SEND ORDER</span>
