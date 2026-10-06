@@ -6,29 +6,48 @@ import { supabase, supabaseConfigurado } from '../config/supabase.js';
 const configuracionPredeterminada = {
   nombre: 'BORONDO Bar POS',
   version: '1.0.0',
-  moneda: 'MXN (Peso mexicano)',
-  idioma: 'Español',
+  moneda: 'MXN',
+  idioma: 'es',
   zona_horaria: 'America/Mexico_City',
 };
 
 let configuracionLocal = { ...configuracionPredeterminada };
+let configuracionActiva = { ...configuracionPredeterminada };
+
+export function establecerConfiguracionActiva(configuracion) {
+  configuracionActiva = { ...configuracionPredeterminada, ...configuracion };
+}
+
+export function obtenerConfiguracionActiva() {
+  return { ...configuracionActiva };
+}
 
 function mapearConfiguracion(datos) {
   return {
     nombre: datos.nombre_sistema,
     version: datos.version,
-    moneda: datos.moneda,
-    idioma: datos.idioma,
+    moneda: normalizarMoneda(datos.moneda),
+    idioma: normalizarIdioma(datos.idioma),
     zona_horaria: datos.zona_horaria,
   };
+}
+
+function normalizarMoneda(moneda) {
+  const codigo = String(moneda || '').match(/\b[A-Z]{3}\b/)?.[0];
+  return codigo || configuracionPredeterminada.moneda;
+}
+
+function normalizarIdioma(idioma) {
+  const valor = String(idioma || '').trim().toLowerCase();
+  return ['en', 'english', 'inglés', 'ingles'].includes(valor) ? 'en' : 'es';
 }
 
 function prepararConfiguracion(datos) {
   return {
     nombre_sistema: datos.nombre.trim(),
     version: datos.version.trim(),
-    moneda: datos.moneda.trim(),
-    idioma: datos.idioma.trim(),
+    moneda: normalizarMoneda(datos.moneda),
+    idioma: normalizarIdioma(datos.idioma),
     zona_horaria: datos.zona_horaria.trim(),
   };
 }
@@ -43,7 +62,9 @@ export async function obtenerConfiguracionSistema() {
     .single();
 
   if (error) throw error;
-  return mapearConfiguracion(data);
+  const configuracion = mapearConfiguracion(data);
+  configuracionLocal = configuracion;
+  return configuracion;
 }
 
 export async function guardarConfiguracionSistema(configuracion) {
@@ -61,6 +82,7 @@ export async function guardarConfiguracionSistema(configuracion) {
       idioma: datos.idioma,
       zona_horaria: datos.zona_horaria,
     };
+    establecerConfiguracionActiva(configuracionLocal);
     return { ...configuracionLocal };
   }
 
@@ -72,5 +94,8 @@ export async function guardarConfiguracionSistema(configuracion) {
     .single();
 
   if (error) throw error;
-  return mapearConfiguracion(data);
+  const configuracionGuardada = mapearConfiguracion(data);
+  configuracionLocal = configuracionGuardada;
+  establecerConfiguracionActiva(configuracionGuardada);
+  return configuracionGuardada;
 }

@@ -12,13 +12,10 @@ import { obtenerMesas } from '../../servicios/mesas.js';
 import { obtenerPedidos } from '../../servicios/pedidos.js';
 import { estadisticasMock, pedidosMock } from '../../datos/datosMock.js';
 import { supabaseConfigurado } from '../../config/supabase.js';
-
-function formatearMoneda(valor) {
-  return `$${Number(valor || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
+import { formatearImporte, formatearFechaSistema } from '../../contextos/ContextoConfiguracion.jsx';
 
 function formatearHora(fechaStr) {
-  return new Date(fechaStr).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+  return formatearFechaSistema(fechaStr, { hour: '2-digit', minute: '2-digit' });
 }
 
 export default function Dashboard() {
@@ -77,7 +74,7 @@ export default function Dashboard() {
           Dashboard
         </h1>
         <p style={{ color: 'var(--texto-terciario)', fontSize: 'var(--texto-sm)' }}>
-          {new Date().toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+          {formatearFechaSistema(new Date(), { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
         </p>
       </div>
 
@@ -85,7 +82,7 @@ export default function Dashboard() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 'var(--espacio-4)' }}>
         <TarjetaStat
           titulo="Ventas del día"
-          valor={formatearMoneda(estadisticas?.ventasHoy)}
+          valor={formatearImporte(estadisticas?.ventasHoy)}
           icono={DollarSign}
           color="dorado"
           tendencia="Hoy hasta ahora"

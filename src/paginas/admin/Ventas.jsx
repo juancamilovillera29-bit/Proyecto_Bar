@@ -7,6 +7,7 @@ import { CargandoSpinner } from '../../componentes/comunes/CargandoSpinner.jsx';
 import { EstadoBadge } from '../../componentes/comunes/EstadoBadge.jsx';
 import { TarjetaStat } from '../../componentes/comunes/TarjetaStat.jsx';
 import { obtenerVentas, obtenerResumenVentasHoy } from '../../servicios/ventas.js';
+import { formatearImporte, formatearFechaSistema } from '../../contextos/ContextoConfiguracion.jsx';
 
 export default function Ventas() {
   const [ventas, setVentas]         = useState([]);
@@ -41,8 +42,8 @@ export default function Ventas() {
     setCargando(false);
   }
 
-  function formatearMoneda(v) { return `$${Number(v || 0).toFixed(2)}`; }
-  function formatearFecha(s) { return new Date(s).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' }); }
+  function formatearMoneda(v) { return formatearImporte(v); }
+  function formatearFecha(s) { return formatearFechaSistema(s, { dateStyle: 'short', timeStyle: 'short' }); }
 
   if (cargando) return <CargandoSpinner mensaje="Cargando ventas..." tamano="grande" />;
 

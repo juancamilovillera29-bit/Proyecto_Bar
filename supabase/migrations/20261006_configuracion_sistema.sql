@@ -21,3 +21,22 @@ DROP POLICY IF EXISTS "admin_configuracion_sistema_total" ON public.configuracio
 CREATE POLICY "admin_configuracion_sistema_total" ON public.configuracion_sistema
   FOR ALL USING (auth.role() = 'authenticated')
   WITH CHECK (auth.role() = 'authenticated');
+
+DROP POLICY IF EXISTS "public_read_configuracion_sistema" ON public.configuracion_sistema;
+CREATE POLICY "public_read_configuracion_sistema" ON public.configuracion_sistema
+  FOR SELECT USING (TRUE);
+
+UPDATE public.configuracion_sistema
+SET moneda = CASE
+      WHEN moneda ~ '^[A-Z]{3}$' THEN moneda
+      WHEN moneda ILIKE 'COP%' OR moneda ILIKE '%colomb%' THEN 'COP'
+      WHEN moneda ILIKE 'USD%' OR moneda ILIKE '%dólar%' OR moneda ILIKE '%dollar%' THEN 'USD'
+      WHEN moneda ILIKE 'EUR%' OR moneda ILIKE '%euro%' THEN 'EUR'
+      WHEN moneda ILIKE 'GBP%' OR moneda ILIKE '%libra%' THEN 'GBP'
+      ELSE 'MXN'
+    END,
+    idioma = CASE
+      WHEN lower(idioma) IN ('en', 'english', 'inglés', 'ingles') THEN 'en'
+      ELSE 'es'
+    END
+WHERE id = TRUE;

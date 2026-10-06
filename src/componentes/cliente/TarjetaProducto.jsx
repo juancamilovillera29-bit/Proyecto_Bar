@@ -3,13 +3,11 @@
 // ============================================
 import { Plus, Minus, Wine } from 'lucide-react';
 import { useCarrito } from '../../contextos/ContextoCarrito.jsx';
+import { formatearImporte } from '../../contextos/ContextoConfiguracion.jsx';
+import { obtenerConfiguracionActiva } from '../../servicios/configuracion.js';
 
 export function formatearPrecio(valor) {
-  const num = Number(valor) || 0;
-  if (num >= 1000) {
-    return `$${num.toLocaleString('es-CO')}`;
-  }
-  return `$${num.toLocaleString('es-CO', { minimumFractionDigits: num % 1 !== 0 ? 2 : 0 })}`;
+  return formatearImporte(valor, obtenerConfiguracionActiva());
 }
 
 export function TarjetaProducto({ producto }) {
@@ -232,4 +230,3 @@ export function TarjetaProducto({ producto }) {
     </div>
   );
 }
-

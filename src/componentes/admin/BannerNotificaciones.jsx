@@ -9,6 +9,7 @@ import { Bell, X, Receipt, ShoppingBag, Volume2, VolumeX, ChevronDown, ChevronUp
 import { obtenerMesas } from '../../servicios/mesas.js';
 import { obtenerPedidos } from '../../servicios/pedidos.js';
 import { sonarSolicitudCuenta, sonarNuevoPedido } from '../../servicios/notificaciones.js';
+import { formatearFechaSistema } from '../../contextos/ContextoConfiguracion.jsx';
 
 function ToastNotif({ notif, alCerrar }) {
   const [visible, setVisible] = useState(true);
@@ -77,7 +78,7 @@ export function BannerNotificaciones() {
   function agregarToast(notif) {
     const id = ++idNotifRef.current;
     setToasts(prev => [{ ...notif, id }, ...prev].slice(0, 5));
-    setAlertasActivas(prev => [{ ...notif, id, hora: new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) }, ...prev].slice(0, 20));
+    setAlertasActivas(prev => [{ ...notif, id, hora: formatearFechaSistema(new Date(), { hour: '2-digit', minute: '2-digit' }) }, ...prev].slice(0, 20));
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
     }, 8000);

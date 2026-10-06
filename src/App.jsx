@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ProveedorAuth } from './contextos/ContextoAuth.jsx';
 import { ProveedorCarrito } from './contextos/ContextoCarrito.jsx';
+import { ProveedorConfiguracion } from './contextos/ContextoConfiguracion.jsx';
 
 // Páginas de autenticación
 import Login from './paginas/Login.jsx';
@@ -29,8 +30,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <ProveedorAuth>
-        <ProveedorCarrito>
-          <Routes>
+        <ProveedorConfiguracion>
+          <ProveedorCarrito>
+            <Routes>
             {/* ── Autenticación ── */}
             <Route path="/login" element={<Login />} />
 
@@ -59,10 +61,10 @@ export default function App() {
             {/* ── Redireccionamiento raíz ── */}
             <Route path="/"   element={<Navigate to="/admin/dashboard" replace />} />
             <Route path="*"   element={<Navigate to="/admin/dashboard" replace />} />
-          </Routes>
-        </ProveedorCarrito>
+            </Routes>
+          </ProveedorCarrito>
+        </ProveedorConfiguracion>
       </ProveedorAuth>
     </BrowserRouter>
   );
 }
-

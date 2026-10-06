@@ -4,24 +4,27 @@
 import { useEffect, useState } from 'react';
 import { Check, Database, Pencil, Save, Wine, X } from 'lucide-react';
 import { supabaseConfigurado } from '../../config/supabase.js';
-import { obtenerConfiguracionSistema, guardarConfiguracionSistema } from '../../servicios/configuracion.js';
+import { obtenerConfiguracionSistema } from '../../servicios/configuracion.js';
+import { obtenerOpcionesMoneda, obtenerOpcionesZonaHoraria, useConfiguracion } from '../../contextos/ContextoConfiguracion.jsx';
 
 const configuracionInicial = {
   nombre: 'BORONDO Bar POS',
   version: '1.0.0',
-  moneda: 'MXN (Peso mexicano)',
-  idioma: 'Español',
+  moneda: 'MXN',
+  idioma: 'es',
   zona_horaria: 'America/Mexico_City',
 };
 
 export default function Configuracion() {
-  const [configuracion, setConfiguracion] = useState(configuracionInicial);
+  const { configuracion, guardar, idioma, texto } = useConfiguracion();
   const [formulario, setFormulario] = useState(configuracionInicial);
   const [cargando, setCargando] = useState(true);
   const [editando, setEditando] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState('');
   const [mensaje, setMensaje] = useState('');
+  const opcionesMoneda = obtenerOpcionesMoneda(idioma);
+  const opcionesZonaHoraria = obtenerOpcionesZonaHoraria();
 
   useEffect(() => {
     let activa = true;
@@ -32,7 +35,6 @@ export default function Configuracion() {
       try {
         const datos = await obtenerConfiguracionSistema();
         if (activa) {
-          setConfiguracion(datos);
           setFormulario(datos);
         }
       } catch (err) {
@@ -66,8 +68,7 @@ export default function Configuracion() {
     setMensaje('');
 
     try {
-      const guardada = await guardarConfiguracionSistema(formulario);
-      setConfiguracion(guardada);
+      const guardada = await guardar(formulario);
       setFormulario(guardada);
       setEditando(false);
       setMensaje('Configuración guardada para todos los administradores.');
@@ -82,14 +83,14 @@ export default function Configuracion() {
   const campos = [
     { clave: 'nombre', etiqueta: 'Nombre del sistema' },
     { clave: 'version', etiqueta: 'Versión' },
-    { clave: 'moneda', etiqueta: 'Moneda', placeholder: 'MXN (Peso mexicano)' },
-    { clave: 'idioma', etiqueta: 'Idioma', placeholder: 'Español' },
-    { clave: 'zona_horaria', etiqueta: 'Zona horaria', placeholder: 'America/Mexico_City' },
+    { clave: 'moneda', etiqueta: texto('Moneda') },
+    { clave: 'idioma', etiqueta: texto('Idioma') },
+    { clave: 'zona_horaria', etiqueta: texto('Zona horaria') },
   ];
 
   return (
     <div style={{ padding: 'var(--espacio-8)', display: 'flex', flexDirection: 'column', gap: 'var(--espacio-8)', animation: 'fadeIn 300ms ease both' }}>
-      <h1 style={{ fontFamily: 'var(--fuente-titular)', fontSize: 'var(--texto-3xl)', color: 'var(--texto-primario)' }}>Configuración</h1>
+      <h1 style={{ fontFamily: 'var(--fuente-titular)', fontSize: 'var(--texto-3xl)', color: 'var(--texto-primario)' }}>{texto('Configuración')}</h1>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
         <div className="tarjeta">
@@ -139,16 +140,37 @@ export default function Configuracion() {
             <form onSubmit={guardarCambios} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {campos.map(campo => (
                 <div className="campo" key={campo.clave}>
-                  <label htmlFor={`config-${campo.clave}`}>{campo.etiqueta}</label>
-                  <input
-                    id={`config-${campo.clave}`}
-                    type="text"
-                    required
-                    maxLength={100}
-                    value={formulario[campo.clave]}
-                    placeholder={campo.placeholder}
-                    onChange={evento => setFormulario(actual => ({ ...actual, [campo.clave]: evento.target.value }))}
-                  />
+                  <label htmlFor={`config-${campo.clave}`}>{texto(campo.etiqueta)}</label>
+                  {campo.clave === 'idioma' ? (
+                    <select id="config-idioma" required value={formulario.idioma}
+                      onChange={evento => setFormulario(actual => ({ ...actual, idioma: evento.target.value }))}>
+                      <option value="es">Español</option>
+                      <option value="en">English</option>
+                    </select>
+                  ) : campo.clave === 'moneda' ? (
+                    <select id="config-moneda" required value={formulario.moneda}
+                      onChange={evento => setFormulario(actual => ({ ...actual, moneda: evento.target.value }))}>
+                      {opcionesMoneda.map(opcion => <option key={opcion.value} value={opcion.value}>{opcion.label}</option>)}
+                    </select>
+                  ) : campo.clave === 'zona_horaria' ? (
+                    <select id="config-zona_horaria" required value={formulario.zona_horaria}
+                      onChange={evento => setFormulario(actual => ({ ...actual, zona_horaria: evento.target.value }))}>
+                      {opcionesZonaHoraria.map(zona => (
+                        <option key={zona} value={zona}>
+                          {zona === 'America/Bogota' ? `${zona} — Colombia` : zona}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      id={`config-${campo.clave}`}
+                      type="text"
+                      required
+                      maxLength={100}
+                      value={formulario[campo.clave]}
+                      onChange={evento => setFormulario(actual => ({ ...actual, [campo.clave]: evento.target.value }))}
+                    />
+                  )}
                 </div>
               ))}
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
@@ -164,7 +186,7 @@ export default function Configuracion() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {campos.map(campo => (
                 <div key={campo.clave} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '8px 0', borderBottom: '1px solid var(--borde-sutil)' }}>
-                  <span style={{ fontSize: 'var(--texto-sm)', color: 'var(--texto-terciario)' }}>{campo.etiqueta}</span>
+                  <span style={{ fontSize: 'var(--texto-sm)', color: 'var(--texto-terciario)' }}>{texto(campo.etiqueta)}</span>
                   <span style={{ fontSize: 'var(--texto-sm)', fontWeight: 600, color: 'var(--texto-primario)', textAlign: 'right', overflowWrap: 'anywhere' }}>{configuracion[campo.clave]}</span>
                 </div>
               ))}

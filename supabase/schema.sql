@@ -190,8 +190,8 @@ CREATE TABLE IF NOT EXISTS configuracion_sistema (
   id              BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (id = TRUE),
   nombre_sistema  TEXT NOT NULL DEFAULT 'BORONDO Bar POS',
   version         TEXT NOT NULL DEFAULT '1.0.0',
-  moneda          TEXT NOT NULL DEFAULT 'MXN (Peso mexicano)',
-  idioma          TEXT NOT NULL DEFAULT 'Español',
+  moneda          TEXT NOT NULL DEFAULT 'MXN',
+  idioma          TEXT NOT NULL DEFAULT 'es',
   zona_horaria    TEXT NOT NULL DEFAULT 'America/Mexico_City',
   actualizado_en  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -425,6 +425,9 @@ DROP POLICY IF EXISTS "admin_configuracion_sistema_total" ON configuracion_siste
 CREATE POLICY "admin_configuracion_sistema_total" ON configuracion_sistema
   FOR ALL USING (auth.role() = 'authenticated')
   WITH CHECK (auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "public_read_configuracion_sistema" ON configuracion_sistema;
+CREATE POLICY "public_read_configuracion_sistema" ON configuracion_sistema
+  FOR SELECT USING (TRUE);
 
 -- ============================================
 -- BASE DE DATOS LISTA PARA PRODUCCIÓN

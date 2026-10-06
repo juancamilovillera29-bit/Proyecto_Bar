@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { BookLock, DollarSign, Banknote, CreditCard, ShoppingBag } from 'lucide-react';
 import { CargandoSpinner } from '../../componentes/comunes/CargandoSpinner.jsx';
 import { obtenerCierres, realizarCierre } from '../../servicios/cierres.js';
+import { formatearImporte, formatearFechaSistema } from '../../contextos/ContextoConfiguracion.jsx';
 
 export default function Cierres() {
   const [cierres, setCierres]   = useState([]);
@@ -31,7 +32,7 @@ export default function Cierres() {
     }
   }
 
-  function formatearMoneda(v) { return `$${Number(v || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`; }
+  function formatearMoneda(v) { return formatearImporte(v); }
 
   if (cargando) return <CargandoSpinner mensaje="Cargando cierres..." tamano="grande" />;
 
@@ -75,10 +76,10 @@ export default function Cierres() {
           <div key={cierre.id} className="tarjeta" style={{ display: 'grid', gridTemplateColumns: '1fr repeat(4, auto)', gap: 24, alignItems: 'center', flexWrap: 'wrap' }}>
             <div>
               <div style={{ fontFamily: 'var(--fuente-titular)', fontWeight: 700, fontSize: 'var(--texto-xl)', color: 'var(--texto-primario)' }}>
-                {new Date(cierre.fecha + 'T12:00:00').toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                {formatearFechaSistema(cierre.fecha + 'T12:00:00', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
               </div>
               <div style={{ fontSize: 'var(--texto-xs)', color: 'var(--texto-muted)', marginTop: 2 }}>
-                Cerrado a las {new Date(cierre.cerrado_en).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+                Cerrado a las {formatearFechaSistema(cierre.cerrado_en, { hour: '2-digit', minute: '2-digit' })}
               </div>
             </div>
             <div style={{ textAlign: 'center' }}>
