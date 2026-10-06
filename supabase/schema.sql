@@ -192,7 +192,8 @@ CREATE TABLE IF NOT EXISTS configuracion_sistema (
   version         TEXT NOT NULL DEFAULT '1.0.0',
   moneda          TEXT NOT NULL DEFAULT 'MXN',
   idioma          TEXT NOT NULL DEFAULT 'es',
-  zona_horaria    TEXT NOT NULL DEFAULT 'America/Mexico_City',
+  zona_horaria    TEXT NOT NULL DEFAULT 'America/Bogota',
+  municipio_colombia TEXT NOT NULL DEFAULT '11001',
   actualizado_en  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

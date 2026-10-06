@@ -98,7 +98,7 @@ En el **Editor SQL** de Supabase, ejecuta el contenido de `supabase/schema.sql`.
 
 > **Proyecto ya conectado:** ejecuta `supabase/migrations/20261006_stock_pedidos_y_metodo_pago.sql` en el SQL Editor. Esta migración hace que cada detalle nuevo descuente el stock en ambas tablas incluso con las políticas RLS para clientes anónimos, repone stock cuando se cancela el pedido, bloquea la solicitud de cuenta hasta que se entreguen todos los pedidos y guarda el método de pago elegido.
 
-> Para habilitar la edición compartida de nombre, versión, moneda, idioma y zona horaria, ejecuta también `supabase/migrations/20261006_configuracion_sistema.sql` en el SQL Editor. La aplicación lee esta configuración también en el menú público; la moneda se guarda como código ISO y el idioma como `es` o `en`. Las opciones de moneda y zona horaria se generan con `Intl` e incluyen COP y `America/Bogota`.
+> Para habilitar la edición compartida de nombre, versión, moneda, idioma y ubicación, ejecuta también `supabase/migrations/20261006_configuracion_sistema.sql` en el SQL Editor. La aplicación lee esta configuración también en el menú público; la moneda se guarda como código ISO y el idioma como `es` o `en`. La lista de ubicación agrupa los municipios colombianos por departamento. Colombia usa una sola zona horaria (`America/Bogota`); el municipio seleccionado se guarda por separado. El conjunto municipal incluido proviene del dataset MinTIC/DANE DIVIPOLA publicado en 2017; consulta `src/datos/COLOMBIA_DATA_LICENSE.txt` para atribución y licencia.
 
 ### 3. Configurar variables de entorno
 

@@ -2,13 +2,15 @@
 // Servicio: Configuración del sistema
 // ============================================
 import { supabase, supabaseConfigurado } from '../config/supabase.js';
+import datosColombia from '../datos/municipios-colombia.json';
 
 const configuracionPredeterminada = {
   nombre: 'BORONDO Bar POS',
   version: '1.0.0',
   moneda: 'MXN',
   idioma: 'es',
-  zona_horaria: 'America/Mexico_City',
+  zona_horaria: 'America/Bogota',
+  municipio_colombia: '11001',
 };
 
 let configuracionLocal = { ...configuracionPredeterminada };
@@ -28,7 +30,8 @@ function mapearConfiguracion(datos) {
     version: datos.version,
     moneda: normalizarMoneda(datos.moneda),
     idioma: normalizarIdioma(datos.idioma),
-    zona_horaria: normalizarZonaHoraria(datos.zona_horaria),
+    zona_horaria: 'America/Bogota',
+    municipio_colombia: normalizarMunicipio(datos.municipio_colombia),
   };
 }
 
@@ -42,15 +45,11 @@ function normalizarIdioma(idioma) {
   return ['en', 'english', 'inglés', 'ingles'].includes(valor) ? 'en' : 'es';
 }
 
-function normalizarZonaHoraria(zonaHoraria) {
-  const zona = String(zonaHoraria || '').trim();
-  const alias = zona === 'America/Colombia' ? 'America/Bogota' : zona;
-  try {
-    new Intl.DateTimeFormat('en', { timeZone: alias });
-    return alias;
-  } catch {
-    return configuracionPredeterminada.zona_horaria;
-  }
+function normalizarMunicipio(municipioId) {
+  const id = String(municipioId || '');
+  return datosColombia.municipios.some(municipio => String(municipio.id) === id)
+    ? id
+    : configuracionPredeterminada.municipio_colombia;
 }
 
 function prepararConfiguracion(datos) {
@@ -59,7 +58,8 @@ function prepararConfiguracion(datos) {
     version: datos.version.trim(),
     moneda: normalizarMoneda(datos.moneda),
     idioma: normalizarIdioma(datos.idioma),
-    zona_horaria: normalizarZonaHoraria(datos.zona_horaria),
+    zona_horaria: 'America/Bogota',
+    municipio_colombia: normalizarMunicipio(datos.municipio_colombia),
   };
 }
 
@@ -68,7 +68,7 @@ export async function obtenerConfiguracionSistema() {
 
   const { data, error } = await supabase
     .from('configuracion_sistema')
-    .select('nombre_sistema, version, moneda, idioma, zona_horaria')
+    .select('nombre_sistema, version, moneda, idioma, zona_horaria, municipio_colombia')
     .eq('id', true)
     .single();
 
@@ -92,6 +92,7 @@ export async function guardarConfiguracionSistema(configuracion) {
       moneda: datos.moneda,
       idioma: datos.idioma,
       zona_horaria: datos.zona_horaria,
+      municipio_colombia: datos.municipio_colombia,
     };
     establecerConfiguracionActiva(configuracionLocal);
     return { ...configuracionLocal };
@@ -101,7 +102,7 @@ export async function guardarConfiguracionSistema(configuracion) {
     .from('configuracion_sistema')
     .update(datos)
     .eq('id', true)
-    .select('nombre_sistema, version, moneda, idioma, zona_horaria')
+    .select('nombre_sistema, version, moneda, idioma, zona_horaria, municipio_colombia')
     .single();
 
   if (error) throw error;

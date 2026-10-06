@@ -5,14 +5,16 @@ import { useEffect, useState } from 'react';
 import { Check, Database, Pencil, Save, Wine, X } from 'lucide-react';
 import { supabaseConfigurado } from '../../config/supabase.js';
 import { obtenerConfiguracionSistema } from '../../servicios/configuracion.js';
-import { obtenerOpcionesMoneda, obtenerOpcionesZonaHoraria, useConfiguracion } from '../../contextos/ContextoConfiguracion.jsx';
+import { obtenerOpcionesMoneda, useConfiguracion } from '../../contextos/ContextoConfiguracion.jsx';
+import datosColombia from '../../datos/municipios-colombia.json';
 
 const configuracionInicial = {
   nombre: 'BORONDO Bar POS',
   version: '1.0.0',
   moneda: 'MXN',
   idioma: 'es',
-  zona_horaria: 'America/Mexico_City',
+  zona_horaria: 'America/Bogota',
+  municipio_colombia: '11001',
 };
 
 export default function Configuracion() {
@@ -24,8 +26,12 @@ export default function Configuracion() {
   const [error, setError] = useState('');
   const [mensaje, setMensaje] = useState('');
   const opcionesMoneda = obtenerOpcionesMoneda(idioma);
-  const opcionesZonaHoraria = obtenerOpcionesZonaHoraria();
-
+  const municipioActual = datosColombia.municipios.find(
+    municipio => String(municipio.id) === configuracion.municipio_colombia,
+  );
+  const departamentoActual = datosColombia.departamentos.find(
+    departamento => departamento.id === municipioActual?.departmentId,
+  );
   useEffect(() => {
     let activa = true;
 
@@ -86,6 +92,7 @@ export default function Configuracion() {
     { clave: 'moneda', etiqueta: texto('Moneda') },
     { clave: 'idioma', etiqueta: texto('Idioma') },
     { clave: 'zona_horaria', etiqueta: texto('Zona horaria') },
+    { clave: 'municipio_colombia', etiqueta: texto('Ubicación (departamento y municipio)') },
   ];
 
   return (
@@ -153,12 +160,23 @@ export default function Configuracion() {
                       {opcionesMoneda.map(opcion => <option key={opcion.value} value={opcion.value}>{opcion.label}</option>)}
                     </select>
                   ) : campo.clave === 'zona_horaria' ? (
-                    <select id="config-zona_horaria" required value={formulario.zona_horaria}
-                      onChange={evento => setFormulario(actual => ({ ...actual, zona_horaria: evento.target.value }))}>
-                      {opcionesZonaHoraria.map(zona => (
-                        <option key={zona} value={zona}>
-                          {zona === 'America/Bogota' ? `${zona} — Colombia` : zona}
-                        </option>
+                    <div>
+                      <input id="config-zona_horaria" value="America/Bogota — Colombia" readOnly />
+                      <small style={{ color: 'var(--texto-terciario)' }}>
+                        {texto('Toda Colombia usa la zona horaria America/Bogota.')}
+                      </small>
+                    </div>
+                  ) : campo.clave === 'municipio_colombia' ? (
+                    <select id="config-municipio_colombia" required value={formulario.municipio_colombia}
+                      onChange={evento => setFormulario(actual => ({ ...actual, municipio_colombia: evento.target.value }))}>
+                      {datosColombia.departamentos.map(departamento => (
+                        <optgroup key={departamento.id} label={departamento.name}>
+                          {datosColombia.municipios
+                            .filter(municipio => municipio.departmentId === departamento.id)
+                            .map(municipio => (
+                              <option key={municipio.id} value={municipio.id}>{municipio.name}</option>
+                            ))}
+                        </optgroup>
                       ))}
                     </select>
                   ) : (
@@ -187,7 +205,13 @@ export default function Configuracion() {
               {campos.map(campo => (
                 <div key={campo.clave} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '8px 0', borderBottom: '1px solid var(--borde-sutil)' }}>
                   <span style={{ fontSize: 'var(--texto-sm)', color: 'var(--texto-terciario)' }}>{texto(campo.etiqueta)}</span>
-                  <span style={{ fontSize: 'var(--texto-sm)', fontWeight: 600, color: 'var(--texto-primario)', textAlign: 'right', overflowWrap: 'anywhere' }}>{configuracion[campo.clave]}</span>
+                  <span style={{ fontSize: 'var(--texto-sm)', fontWeight: 600, color: 'var(--texto-primario)', textAlign: 'right', overflowWrap: 'anywhere' }}>
+                    {campo.clave === 'municipio_colombia'
+                      ? `${municipioActual?.name || 'Bogotá D.C.'} — ${departamentoActual?.name || 'Bogotá D.C.'}`
+                      : campo.clave === 'zona_horaria'
+                        ? 'America/Bogota — Colombia'
+                        : configuracion[campo.clave]}
+                  </span>
                 </div>
               ))}
             </div>

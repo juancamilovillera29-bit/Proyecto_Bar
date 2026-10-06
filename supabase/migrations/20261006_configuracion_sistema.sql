@@ -7,13 +7,17 @@ CREATE TABLE IF NOT EXISTS public.configuracion_sistema (
   version         TEXT NOT NULL DEFAULT '1.0.0',
   moneda          TEXT NOT NULL DEFAULT 'MXN (Peso mexicano)',
   idioma          TEXT NOT NULL DEFAULT 'Español',
-  zona_horaria    TEXT NOT NULL DEFAULT 'America/Mexico_City',
+  zona_horaria    TEXT NOT NULL DEFAULT 'America/Bogota',
+  municipio_colombia TEXT NOT NULL DEFAULT '11001',
   actualizado_en  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 INSERT INTO public.configuracion_sistema (id)
 VALUES (TRUE)
 ON CONFLICT (id) DO NOTHING;
+
+ALTER TABLE public.configuracion_sistema
+  ADD COLUMN IF NOT EXISTS municipio_colombia TEXT NOT NULL DEFAULT '11001';
 
 ALTER TABLE public.configuracion_sistema ENABLE ROW LEVEL SECURITY;
 
@@ -39,8 +43,6 @@ SET moneda = CASE
       WHEN lower(idioma) IN ('en', 'english', 'inglés', 'ingles') THEN 'en'
       ELSE 'es'
     END,
-    zona_horaria = CASE
-      WHEN zona_horaria = 'America/Colombia' THEN 'America/Bogota'
-      ELSE zona_horaria
-    END
+    zona_horaria = 'America/Bogota',
+    municipio_colombia = COALESCE(NULLIF(municipio_colombia, ''), '11001')
 WHERE id = TRUE;
