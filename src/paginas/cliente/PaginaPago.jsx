@@ -20,9 +20,15 @@ export default function PaginaPago() {
   const [metodo, setMetodo]         = useState('efectivo');
   const [cargando, setCargando]     = useState(true);
   const [solicitado, setSolicitado] = useState(false);
+  const [noSePudoCerrar, setNoSePudoCerrar] = useState(false);
   const [procesando, setProcesando] = useState(false);
   const [errorSolicitud, setErrorSolicitud] = useState('');
   const [errorMetodoPago, setErrorMetodoPago] = useState('');
+
+  function manejarSalir() {
+    window.close();
+    if (!window.closed) setNoSePudoCerrar(true);
+  }
 
   async function cargarDatos(esRecarga = false) {
     try {
@@ -208,6 +214,46 @@ export default function PaginaPago() {
             <span>
               La mesa ha sido bloqueada para nuevos pedidos mientras se completa el cobro. ¡Muchas gracias por visitarnos!
             </span>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 20 }}>
+            <button
+              type="button"
+              onClick={manejarSalir}
+              style={{
+                background: '#e5a93c',
+                color: '#121214',
+                padding: '14px',
+                borderRadius: '16px',
+                fontWeight: 800,
+                fontSize: '1rem',
+                border: 'none',
+                cursor: 'pointer',
+              }}
+            >
+              Salir
+            </button>
+            <Link
+              to={`/mesa/${codigoQr}`}
+              style={{
+                background: '#19191d',
+                color: '#8f9098',
+                border: '1px solid #27272e',
+                padding: '14px',
+                borderRadius: '16px',
+                fontWeight: 600,
+                textDecoration: 'none',
+                textAlign: 'center',
+                fontSize: '0.95rem',
+              }}
+            >
+              Volver al menú
+            </Link>
+            {noSePudoCerrar && (
+              <p role="status" style={{ color: '#8f9098', margin: 0, fontSize: '0.85rem', lineHeight: 1.5 }}>
+                El navegador no permitió cerrar esta pestaña. Puedes cerrarla manualmente.
+              </p>
+            )}
           </div>
         </div>
       </div>

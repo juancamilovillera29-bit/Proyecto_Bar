@@ -18,15 +18,9 @@ export default function ConfirmarPedido() {
   const [observaciones, setObservaciones] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [pedidoEnviado, setPedidoEnviado] = useState(false);
-  const [noSePudoCerrar, setNoSePudoCerrar] = useState(false);
   const [errorEnvio, setErrorEnvio] = useState(null);
   const [mesaActual, setMesaActual] = useState(null);
   const [productosFrescos, setProductosFrescos] = useState([]);
-
-  function manejarSalir() {
-    window.close();
-    if (!window.closed) setNoSePudoCerrar(true);
-  }
 
   // Asegurar que mesaId y cuentaId estén disponibles y cargar stock fresco
   useEffect(() => {
@@ -209,22 +203,21 @@ export default function ConfirmarPedido() {
             Tu pedido fue enviado a la barra/cocina. Ya lo están preparando.
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <button
-              type="button"
-              onClick={manejarSalir}
+            <Link
+              to={`/mesa/${codigoQr}/seguimiento`}
               style={{
                 background: '#e5a93c',
                 color: '#121214',
                 padding: '14px',
                 borderRadius: '16px',
                 fontWeight: 800,
+                textDecoration: 'none',
+                textAlign: 'center',
                 fontSize: '1rem',
-                border: 'none',
-                cursor: 'pointer',
               }}
             >
-              Salir
-            </button>
+              Ver estado del pedido →
+            </Link>
             <Link
               to={`/mesa/${codigoQr}`}
               style={{
@@ -241,11 +234,6 @@ export default function ConfirmarPedido() {
             >
               Volver al menú
             </Link>
-            {noSePudoCerrar && (
-              <p role="status" style={{ color: '#8f9098', margin: 0, fontSize: '0.85rem', lineHeight: 1.5 }}>
-                El navegador no permitió cerrar esta pestaña. Puedes cerrarla manualmente.
-              </p>
-            )}
           </div>
         </div>
       </div>
@@ -636,4 +624,3 @@ export default function ConfirmarPedido() {
     </div>
   );
 }
-
