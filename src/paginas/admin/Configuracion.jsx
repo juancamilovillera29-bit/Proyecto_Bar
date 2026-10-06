@@ -1,16 +1,97 @@
 // ============================================
 // Página: Configuración
 // ============================================
-import { Settings, Wine, Database, Monitor } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Check, Database, Pencil, Save, Wine, X } from 'lucide-react';
 import { supabaseConfigurado } from '../../config/supabase.js';
+import { obtenerConfiguracionSistema, guardarConfiguracionSistema } from '../../servicios/configuracion.js';
+
+const configuracionInicial = {
+  nombre: 'BORONDO Bar POS',
+  version: '1.0.0',
+  moneda: 'MXN (Peso mexicano)',
+  idioma: 'Español',
+  zona_horaria: 'America/Mexico_City',
+};
 
 export default function Configuracion() {
+  const [configuracion, setConfiguracion] = useState(configuracionInicial);
+  const [formulario, setFormulario] = useState(configuracionInicial);
+  const [cargando, setCargando] = useState(true);
+  const [editando, setEditando] = useState(false);
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState('');
+  const [mensaje, setMensaje] = useState('');
+
+  useEffect(() => {
+    let activa = true;
+
+    async function cargarConfiguracion() {
+      setCargando(true);
+      setError('');
+      try {
+        const datos = await obtenerConfiguracionSistema();
+        if (activa) {
+          setConfiguracion(datos);
+          setFormulario(datos);
+        }
+      } catch (err) {
+        if (activa) setError(err?.message || 'No se pudo cargar la configuración del sistema.');
+      } finally {
+        if (activa) setCargando(false);
+      }
+    }
+
+    cargarConfiguracion();
+    return () => { activa = false; };
+  }, []);
+
+  function empezarEdicion() {
+    setFormulario({ ...configuracion });
+    setError('');
+    setMensaje('');
+    setEditando(true);
+  }
+
+  function cancelarEdicion() {
+    setFormulario({ ...configuracion });
+    setError('');
+    setEditando(false);
+  }
+
+  async function guardarCambios(evento) {
+    evento.preventDefault();
+    setGuardando(true);
+    setError('');
+    setMensaje('');
+
+    try {
+      const guardada = await guardarConfiguracionSistema(formulario);
+      setConfiguracion(guardada);
+      setFormulario(guardada);
+      setEditando(false);
+      setMensaje('Configuración guardada para todos los administradores.');
+    } catch (err) {
+      console.error('Error al guardar la configuración del sistema:', err);
+      setError(err?.message || 'No se pudieron guardar los cambios.');
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  const campos = [
+    { clave: 'nombre', etiqueta: 'Nombre del sistema' },
+    { clave: 'version', etiqueta: 'Versión' },
+    { clave: 'moneda', etiqueta: 'Moneda', placeholder: 'MXN (Peso mexicano)' },
+    { clave: 'idioma', etiqueta: 'Idioma', placeholder: 'Español' },
+    { clave: 'zona_horaria', etiqueta: 'Zona horaria', placeholder: 'America/Mexico_City' },
+  ];
+
   return (
     <div style={{ padding: 'var(--espacio-8)', display: 'flex', flexDirection: 'column', gap: 'var(--espacio-8)', animation: 'fadeIn 300ms ease both' }}>
       <h1 style={{ fontFamily: 'var(--fuente-titular)', fontSize: 'var(--texto-3xl)', color: 'var(--texto-primario)' }}>Configuración</h1>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 20 }}>
-        {/* Estado del sistema */}
         <div className="tarjeta">
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
             <Database size={20} color="var(--dorado-puro)" />
@@ -39,42 +120,58 @@ export default function Configuracion() {
           )}
         </div>
 
-        {/* Información del sistema */}
         <div className="tarjeta">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-            <Wine size={20} color="var(--dorado-puro)" />
-            <h3 style={{ fontFamily: 'var(--fuente-titular)', fontSize: 'var(--texto-lg)', color: 'var(--texto-primario)' }}>Sistema</h3>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 20 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <Wine size={20} color="var(--dorado-puro)" />
+              <h3 style={{ fontFamily: 'var(--fuente-titular)', fontSize: 'var(--texto-lg)', color: 'var(--texto-primario)' }}>Sistema</h3>
+            </div>
+            {!editando && (
+              <button type="button" className="btn btn-fantasma btn-sm" onClick={empezarEdicion} disabled={cargando}>
+                <Pencil size={14} /> Editar
+              </button>
+            )}
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {[
-              { etiqueta: 'Nombre del sistema', valor: 'BORONDO Bar POS' },
-              { etiqueta: 'Versión', valor: '1.0.0' },
-              { etiqueta: 'Moneda', valor: 'MXN (Peso mexicano)' },
-              { etiqueta: 'Idioma', valor: 'Español' },
-              { etiqueta: 'Zona horaria', valor: 'America/Mexico_City' },
-            ].map(item => (
-              <div key={item.etiqueta} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--borde-sutil)' }}>
-                <span style={{ fontSize: 'var(--texto-sm)', color: 'var(--texto-terciario)' }}>{item.etiqueta}</span>
-                <span style={{ fontSize: 'var(--texto-sm)', fontWeight: 600, color: 'var(--texto-primario)' }}>{item.valor}</span>
-              </div>
-            ))}
-          </div>
-        </div>
 
-        {/* Accesos directos */}
-        <div className="tarjeta">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-            <Monitor size={20} color="var(--dorado-puro)" />
-            <h3 style={{ fontFamily: 'var(--fuente-titular)', fontSize: 'var(--texto-lg)', color: 'var(--texto-primario)' }}>Accesos directos</h3>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <a href="/kds" target="_blank" rel="noreferrer" className="btn btn-secundario" style={{ justifyContent: 'center' }}>
-              🍳 Abrir KDS en pantalla completa
-            </a>
-            <a href="/mesa/mesa-01" target="_blank" rel="noreferrer" className="btn btn-fantasma" style={{ justifyContent: 'center' }}>
-              📱 Ver menú del cliente (Mesa 1)
-            </a>
-          </div>
+          {cargando ? (
+            <p style={{ color: 'var(--texto-terciario)', fontSize: 'var(--texto-sm)' }}>Cargando configuración...</p>
+          ) : editando ? (
+            <form onSubmit={guardarCambios} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {campos.map(campo => (
+                <div className="campo" key={campo.clave}>
+                  <label htmlFor={`config-${campo.clave}`}>{campo.etiqueta}</label>
+                  <input
+                    id={`config-${campo.clave}`}
+                    type="text"
+                    required
+                    maxLength={100}
+                    value={formulario[campo.clave]}
+                    placeholder={campo.placeholder}
+                    onChange={evento => setFormulario(actual => ({ ...actual, [campo.clave]: evento.target.value }))}
+                  />
+                </div>
+              ))}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
+                <button type="button" className="btn btn-fantasma btn-sm" onClick={cancelarEdicion} disabled={guardando}>
+                  <X size={14} /> Cancelar
+                </button>
+                <button type="submit" className="btn btn-primario btn-sm" disabled={guardando}>
+                  <Save size={14} /> {guardando ? 'Guardando...' : 'Guardar cambios'}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {campos.map(campo => (
+                <div key={campo.clave} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '8px 0', borderBottom: '1px solid var(--borde-sutil)' }}>
+                  <span style={{ fontSize: 'var(--texto-sm)', color: 'var(--texto-terciario)' }}>{campo.etiqueta}</span>
+                  <span style={{ fontSize: 'var(--texto-sm)', fontWeight: 600, color: 'var(--texto-primario)', textAlign: 'right', overflowWrap: 'anywhere' }}>{configuracion[campo.clave]}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {error && <p role="alert" style={{ color: 'var(--rojo-claro)', fontSize: 'var(--texto-sm)', margin: '12px 0 0' }}>{error}</p>}
+          {mensaje && <p role="status" style={{ color: 'var(--verde-exito-claro)', fontSize: 'var(--texto-sm)', margin: '12px 0 0', display: 'flex', alignItems: 'center', gap: 6 }}><Check size={15} />{mensaje}</p>}
         </div>
       </div>
     </div>

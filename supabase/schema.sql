@@ -183,6 +183,24 @@ CREATE TABLE IF NOT EXISTS cierres (
 CREATE INDEX IF NOT EXISTS idx_cierres_fecha ON cierres(fecha);
 
 -- ============================================
+-- TABLA: configuracion_sistema
+-- Configuración compartida del panel administrativo
+-- ============================================
+CREATE TABLE IF NOT EXISTS configuracion_sistema (
+  id              BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (id = TRUE),
+  nombre_sistema  TEXT NOT NULL DEFAULT 'BORONDO Bar POS',
+  version         TEXT NOT NULL DEFAULT '1.0.0',
+  moneda          TEXT NOT NULL DEFAULT 'MXN (Peso mexicano)',
+  idioma          TEXT NOT NULL DEFAULT 'Español',
+  zona_horaria    TEXT NOT NULL DEFAULT 'America/Mexico_City',
+  actualizado_en  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+INSERT INTO configuracion_sistema (id)
+VALUES (TRUE)
+ON CONFLICT (id) DO NOTHING;
+
+-- ============================================
 -- TRIGGERS
 -- ============================================
 CREATE OR REPLACE FUNCTION actualizar_timestamp()
@@ -373,6 +391,7 @@ ALTER TABLE ventas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE inventario ENABLE ROW LEVEL SECURITY;
 ALTER TABLE movimientos_inventario ENABLE ROW LEVEL SECURITY;
 ALTER TABLE cierres ENABLE ROW LEVEL SECURITY;
+ALTER TABLE configuracion_sistema ENABLE ROW LEVEL SECURITY;
 
 -- Políticas de lectura pública
 CREATE POLICY "mesas_lectura_publica" ON mesas FOR SELECT USING (TRUE);
@@ -402,6 +421,10 @@ CREATE POLICY "admin_ventas_total" ON ventas FOR ALL USING (auth.role() = 'authe
 CREATE POLICY "admin_inventario_total" ON inventario FOR ALL USING (auth.role() = 'authenticated');
 CREATE POLICY "admin_movimientos_total" ON movimientos_inventario FOR ALL USING (auth.role() = 'authenticated');
 CREATE POLICY "admin_cierres_total" ON cierres FOR ALL USING (auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "admin_configuracion_sistema_total" ON configuracion_sistema;
+CREATE POLICY "admin_configuracion_sistema_total" ON configuracion_sistema
+  FOR ALL USING (auth.role() = 'authenticated')
+  WITH CHECK (auth.role() = 'authenticated');
 
 -- ============================================
 -- BASE DE DATOS LISTA PARA PRODUCCIÓN
