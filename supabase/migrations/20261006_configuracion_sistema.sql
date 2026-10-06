@@ -38,5 +38,9 @@ SET moneda = CASE
     idioma = CASE
       WHEN lower(idioma) IN ('en', 'english', 'inglés', 'ingles') THEN 'en'
       ELSE 'es'
+    END,
+    zona_horaria = CASE
+      WHEN zona_horaria = 'America/Colombia' THEN 'America/Bogota'
+      ELSE zona_horaria
     END
 WHERE id = TRUE;

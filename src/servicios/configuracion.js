@@ -28,7 +28,7 @@ function mapearConfiguracion(datos) {
     version: datos.version,
     moneda: normalizarMoneda(datos.moneda),
     idioma: normalizarIdioma(datos.idioma),
-    zona_horaria: datos.zona_horaria,
+    zona_horaria: normalizarZonaHoraria(datos.zona_horaria),
   };
 }
 
@@ -42,13 +42,24 @@ function normalizarIdioma(idioma) {
   return ['en', 'english', 'inglés', 'ingles'].includes(valor) ? 'en' : 'es';
 }
 
+function normalizarZonaHoraria(zonaHoraria) {
+  const zona = String(zonaHoraria || '').trim();
+  const alias = zona === 'America/Colombia' ? 'America/Bogota' : zona;
+  try {
+    new Intl.DateTimeFormat('en', { timeZone: alias });
+    return alias;
+  } catch {
+    return configuracionPredeterminada.zona_horaria;
+  }
+}
+
 function prepararConfiguracion(datos) {
   return {
     nombre_sistema: datos.nombre.trim(),
     version: datos.version.trim(),
     moneda: normalizarMoneda(datos.moneda),
     idioma: normalizarIdioma(datos.idioma),
-    zona_horaria: datos.zona_horaria.trim(),
+    zona_horaria: normalizarZonaHoraria(datos.zona_horaria),
   };
 }
 

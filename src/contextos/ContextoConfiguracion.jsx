@@ -311,8 +311,19 @@ export function formatearImporte(valor, configuracion) {
 export function formatearFechaSistema(fecha, opciones = {}) {
   const configuracion = obtenerConfiguracionActiva();
   const locale = configuracion.idioma === 'en' ? 'en-US' : 'es-CO';
+  const zonas = [configuracion.zona_horaria, 'America/Bogota'];
+  let zonaHorariaValida = 'UTC';
+  for (const zona of zonas) {
+    try {
+      new Intl.DateTimeFormat(locale, { timeZone: zona });
+      zonaHorariaValida = zona;
+      break;
+    } catch {
+      continue;
+    }
+  }
   return new Intl.DateTimeFormat(locale, {
-    timeZone: configuracion.zona_horaria,
+    timeZone: zonaHorariaValida,
     ...opciones,
   }).format(new Date(fecha));
 }
@@ -336,9 +347,17 @@ export function obtenerOpcionesMoneda(idioma) {
 }
 
 export function obtenerOpcionesZonaHoraria() {
-  const zonas = typeof Intl.supportedValuesOf === 'function'
+  const zonasDisponibles = typeof Intl.supportedValuesOf === 'function'
     ? Intl.supportedValuesOf('timeZone')
     : ['America/Bogota', 'America/Mexico_City', 'America/New_York', 'Europe/Madrid', 'UTC'];
+  const zonas = zonasDisponibles.filter(zona => {
+    try {
+      new Intl.DateTimeFormat('en', { timeZone: zona });
+      return true;
+    } catch {
+      return false;
+    }
+  });
   if (!zonas.includes('America/Bogota')) zonas.push('America/Bogota');
   return zonas.sort();
 }
