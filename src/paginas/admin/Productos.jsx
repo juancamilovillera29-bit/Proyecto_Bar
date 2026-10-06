@@ -17,6 +17,7 @@ export default function Productos() {
   const [productoEditando, setProductoEditando] = useState(null);
   const [formulario, setFormulario] = useState(productoVacio);
   const [guardando, setGuardando]   = useState(false);
+  const [errorGuardado, setErrorGuardado] = useState('');
 
   useEffect(() => {
     cargarProductos();
@@ -38,13 +39,24 @@ export default function Productos() {
 
   function abrirModal(producto = null) {
     setProductoEditando(producto);
-    setFormulario(producto ? { ...producto } : productoVacio);
+    setFormulario(producto ? {
+      nombre: producto.nombre ?? '',
+      descripcion: producto.descripcion ?? '',
+      precio_venta: producto.precio_venta ?? '',
+      costo: producto.costo ?? '',
+      stock: producto.stock ?? 0,
+      stock_minimo: producto.stock_minimo ?? 5,
+      imagen_url: producto.imagen_url ?? '',
+      activo: producto.activo ?? true,
+    } : productoVacio);
+    setErrorGuardado('');
     setModalAbierto(true);
   }
 
   async function guardarProducto(e) {
     e.preventDefault();
     setGuardando(true);
+    setErrorGuardado('');
     try {
       const datos = {
         ...formulario,
@@ -60,6 +72,9 @@ export default function Productos() {
       }
       await cargarProductos();
       setModalAbierto(false);
+    } catch (error) {
+      console.error('Error al guardar producto:', error);
+      setErrorGuardado(error?.message || 'No se pudieron guardar los cambios del producto.');
     } finally {
       setGuardando(false);
     }
@@ -219,6 +234,11 @@ export default function Productos() {
       {/* Modal CRUD */}
       <Modal abierto={modalAbierto} alCerrar={() => setModalAbierto(false)} titulo={productoEditando ? 'Editar producto' : 'Nuevo producto'}>
         <form onSubmit={guardarProducto} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {errorGuardado && (
+            <div role="alert" style={{ color: 'var(--rojo-claro)', background: 'var(--rojo-bg)', border: '1px solid var(--rojo-error)', borderRadius: 'var(--radio-md)', padding: '10px 12px', fontSize: 'var(--texto-sm)' }}>
+              {errorGuardado}
+            </div>
+          )}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div className="campo" style={{ gridColumn: '1 / -1' }}>
               <label>Nombre <span className="requerido">*</span></label>

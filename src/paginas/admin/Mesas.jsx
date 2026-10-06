@@ -426,7 +426,11 @@ export default function Mesas() {
                   </div>
                 ) : (
                   <div className="campo">
-                    <label>Método de pago recibido</label>
+                    <label>
+                      {cuentas[mesaSeleccionada.id]?.estado === 'pendiente_pago'
+                        ? 'Método de pago recibido (no guardado por el cliente)'
+                        : 'Método de pago recibido'}
+                    </label>
                     <select value={metodoPago} onChange={e => setMetodoPago(e.target.value)}>
                       <option value="efectivo">Efectivo</option>
                       <option value="transferencia">Transferencia</option>

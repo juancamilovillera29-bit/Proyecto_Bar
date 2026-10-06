@@ -4,6 +4,14 @@
 import { supabase, supabaseConfigurado } from '../config/supabase.js';
 import { productosMock, inventarioMock } from '../datos/datosMock.js';
 
+function prepararDatosProducto(datos) {
+  const { nombre, descripcion, precio_venta, costo, stock, stock_minimo, imagen_url, activo } = datos;
+  return Object.fromEntries(
+    Object.entries({ nombre, descripcion, precio_venta, costo, stock, stock_minimo, imagen_url, activo })
+      .filter(([, valor]) => valor !== undefined)
+  );
+}
+
 export async function obtenerProductos(soloActivos = false) {
   if (!supabaseConfigurado) {
     return soloActivos ? productosMock.filter(p => p.activo) : productosMock;
@@ -72,63 +80,65 @@ export async function obtenerProductoPorId(id) {
 }
 
 export async function crearProducto(datos) {
+  const datosProducto = prepararDatosProducto(datos);
   if (!supabaseConfigurado) {
-    const nuevo = { ...datos, id: `prod-${Date.now()}`, creado_en: new Date().toISOString() };
+    const nuevo = { ...datosProducto, id: `prod-${Date.now()}`, creado_en: new Date().toISOString() };
     productosMock.push(nuevo);
     inventarioMock.push({
       id: `inv-${nuevo.id}`,
       producto_id: nuevo.id,
-      stock_actual: nuevo.stock || 0,
-      stock_minimo: nuevo.stock_minimo || 5,
+      stock_actual: nuevo.stock ?? 0,
+      stock_minimo: nuevo.stock_minimo ?? 5,
       actualizado_en: new Date().toISOString(),
     });
     return nuevo;
   }
-  const { data, error } = await supabase.from('productos').insert(datos).select().single();
+  const { data, error } = await supabase.from('productos').insert(datosProducto).select().single();
   if (error) throw error;
   // Crear registro en inventario al crear producto
   const { error: errorInventario } = await supabase.from('inventario').upsert({
     producto_id: data.id,
-    stock_actual: datos.stock || 0,
-    stock_minimo: datos.stock_minimo || 5,
+    stock_actual: datosProducto.stock ?? 0,
+    stock_minimo: datosProducto.stock_minimo ?? 5,
   }, { onConflict: 'producto_id' });
   if (errorInventario) throw errorInventario;
   return data;
 }
 
 export async function actualizarProducto(id, datos) {
+  const datosProducto = prepararDatosProducto(datos);
   if (!supabaseConfigurado) {
     const idx = productosMock.findIndex(p => p.id === id);
     if (idx !== -1) {
-      Object.assign(productosMock[idx], datos);
+      Object.assign(productosMock[idx], datosProducto);
       const inv = inventarioMock.find(i => i.producto_id === id);
       if (inv) {
-        if (datos.stock !== undefined) inv.stock_actual = datos.stock;
-        if (datos.stock_minimo !== undefined) inv.stock_minimo = datos.stock_minimo;
+        if (datosProducto.stock !== undefined) inv.stock_actual = datosProducto.stock;
+        if (datosProducto.stock_minimo !== undefined) inv.stock_minimo = datosProducto.stock_minimo;
         inv.actualizado_en = new Date().toISOString();
-      } else if (datos.stock !== undefined || datos.stock_minimo !== undefined) {
+      } else if (datosProducto.stock !== undefined || datosProducto.stock_minimo !== undefined) {
         inventarioMock.push({
           id: `inv-${id}`,
           producto_id: id,
-          stock_actual: datos.stock ?? productosMock[idx].stock,
-          stock_minimo: datos.stock_minimo ?? productosMock[idx].stock_minimo ?? 5,
+          stock_actual: datosProducto.stock ?? productosMock[idx].stock,
+          stock_minimo: datosProducto.stock_minimo ?? productosMock[idx].stock_minimo ?? 5,
           actualizado_en: new Date().toISOString(),
         });
       }
     }
     return productosMock[idx];
   }
-  const { data, error } = await supabase.from('productos').update(datos).eq('id', id).select().single();
+  const { data, error } = await supabase.from('productos').update(datosProducto).eq('id', id).select().single();
   if (error) throw error;
 
   // Si se actualizó el stock o stock_minimo, sincronizar inventario
-  if (datos.stock !== undefined || datos.stock_minimo !== undefined) {
+  if (datosProducto.stock !== undefined || datosProducto.stock_minimo !== undefined) {
     const updateInv = {
       producto_id: id,
+      stock_actual: datosProducto.stock ?? data.stock,
+      stock_minimo: datosProducto.stock_minimo ?? data.stock_minimo,
       actualizado_en: new Date().toISOString(),
     };
-    if (datos.stock !== undefined) updateInv.stock_actual = datos.stock;
-    if (datos.stock_minimo !== undefined) updateInv.stock_minimo = datos.stock_minimo;
 
     const { error: errorInventario } = await supabase
       .from('inventario')
