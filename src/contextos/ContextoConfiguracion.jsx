@@ -1,4 +1,4 @@
-import { createContext, Fragment, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, Fragment, useContext, useEffect, useMemo, useState } from 'react';
 import {
   obtenerConfiguracionSistema,
   guardarConfiguracionSistema,
@@ -343,7 +343,6 @@ export function obtenerOpcionesZonaHoraria() {
 }
 
 export function ProveedorConfiguracion({ children }) {
-  const originales = useRef(new WeakMap());
   const [configuracion, setConfiguracion] = useState({
     nombre: 'BORONDO Bar POS',
     version: '1.0.0',
@@ -356,47 +355,6 @@ export function ProveedorConfiguracion({ children }) {
     document.documentElement.lang = configuracion.idioma === 'en' ? 'en' : 'es';
     establecerConfiguracionActiva(configuracion);
   }, [configuracion]);
-
-  useEffect(() => {
-    const raiz = document.getElementById('root');
-    if (!raiz) return undefined;
-
-    const traducirNodo = nodo => {
-      if (nodo.nodeType === Node.TEXT_NODE) {
-        const anterior = originales.current.get(nodo);
-        const original = anterior && nodo.nodeValue === anterior.traduccion
-          ? anterior.original
-          : nodo.nodeValue;
-        const traduccion = traducirTexto(original, configuracion.idioma);
-        originales.current.set(nodo, { original, traduccion });
-        if (nodo.nodeValue !== traduccion) nodo.nodeValue = traduccion;
-        return;
-      }
-      if (nodo.nodeType !== Node.ELEMENT_NODE) return;
-      for (const atributo of ['title', 'placeholder', 'aria-label']) {
-        if (!nodo.hasAttribute(atributo)) continue;
-        const anterior = originales.current.get(nodo)?.[atributo];
-        const actual = nodo.getAttribute(atributo);
-        const original = anterior && actual === anterior.traduccion ? anterior.original : actual;
-        const traduccion = traducirTexto(original, configuracion.idioma);
-        const guardado = originales.current.get(nodo) || {};
-        guardado[atributo] = { original, traduccion };
-        originales.current.set(nodo, guardado);
-        if (actual !== traduccion) nodo.setAttribute(atributo, traduccion);
-      }
-      nodo.childNodes.forEach(traducirNodo);
-    };
-
-    traducirNodo(raiz);
-    const observer = new MutationObserver(registros => {
-      registros.forEach(registro => {
-        if (registro.type === 'characterData') traducirNodo(registro.target);
-        else registro.addedNodes.forEach(traducirNodo);
-      });
-    });
-    observer.observe(raiz, { subtree: true, childList: true, characterData: true });
-    return () => observer.disconnect();
-  }, [configuracion.idioma]);
 
   useEffect(() => {
     let activo = true;
