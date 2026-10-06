@@ -147,9 +147,7 @@ export async function crearPedido(datos) {
     throw errorDetalles;
   }
 
-  // 5. Descontar una sola vez mediante movimientos de inventario.
-  await descontarStockPorPedidos([{ detalles }], `Pedido mesa (ID: ${pedido.id.slice(0, 8)})`);
-
+  // 5. El trigger de Supabase descuenta el stock al insertar los detalles del pedido.
   // 6. Actualizar mesa a ocupada automáticamente
   if (datosPedido.mesa_id) {
     try {
@@ -208,17 +206,6 @@ export async function actualizarEstadoPedido(id, estado) {
     return pedido;
   }
 
-  // Obtener estado anterior y detalles si se va a cancelar
-  let pedidoPrevio = null;
-  if (estado === 'cancelado') {
-    const { data: pData } = await supabase
-      .from('pedidos')
-      .select('estado, detalles:detalles_pedido(*)')
-      .eq('id', id)
-      .single();
-    pedidoPrevio = pData;
-  }
-
   const { data, error } = await supabase
     .from('pedidos')
     .update({ estado, actualizado_en: new Date().toISOString() })
@@ -227,17 +214,6 @@ export async function actualizarEstadoPedido(id, estado) {
     .single();
   if (error) throw error;
 
-  // Si se canceló el pedido, reponer stock mediante un movimiento de entrada.
-  if (estado === 'cancelado' && pedidoPrevio && pedidoPrevio.estado !== 'cancelado' && pedidoPrevio.detalles) {
-    for (const d of pedidoPrevio.detalles) {
-      await registrarMovimiento({
-        producto_id: d.producto_id,
-        tipo: 'entrada',
-        cantidad: d.cantidad || 1,
-        motivo: `Cancelación pedido (ID: ${id.slice(0, 8)})`,
-      });
-    }
-  }
-
+  // El trigger de Supabase registra la entrada de reposición al cancelar.
   return data;
 }
