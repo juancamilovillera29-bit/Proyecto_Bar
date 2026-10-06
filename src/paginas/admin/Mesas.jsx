@@ -86,7 +86,11 @@ export default function Mesas() {
     setMesaSeleccionada(mesa);
     setPedidosMesa([]);
     setModalDetalle(true);
-    const cuenta = cuentas[mesa.id];
+    const cuentaActualizada = await obtenerCuentaActivaDeMesa(mesa.id);
+    const cuenta = cuentaActualizada || cuentas[mesa.id];
+    if (cuentaActualizada) {
+      setCuentas(prev => ({ ...prev, [mesa.id]: cuentaActualizada }));
+    }
     setMetodoPago(cuenta?.metodo_pago || 'efectivo');
     if (cuenta) {
       try {
@@ -403,21 +407,32 @@ export default function Mesas() {
                   </div>
                 )}
 
-                <div className="campo">
-                  <label>
-                    {cuentas[mesaSeleccionada.id]?.metodo_pago
-                      ? 'Método elegido por el cliente'
-                      : 'Método de pago recibido'}
-                  </label>
-                  <select
-                    value={cuentas[mesaSeleccionada.id]?.metodo_pago || metodoPago}
-                    onChange={e => setMetodoPago(e.target.value)}
-                    disabled={Boolean(cuentas[mesaSeleccionada.id]?.metodo_pago)}
-                  >
-                    <option value="efectivo">Efectivo</option>
-                    <option value="transferencia">Transferencia</option>
-                  </select>
-                </div>
+                {cuentas[mesaSeleccionada.id]?.metodo_pago ? (
+                  <div className="campo">
+                    <label>Método elegido por el cliente</label>
+                    <div
+                      role="status"
+                      style={{
+                        padding: '12px 14px',
+                        border: '1px solid var(--dorado-puro)',
+                        borderRadius: 'var(--radio-md)',
+                        background: 'var(--superficie-2)',
+                        color: 'var(--texto-primario)',
+                        fontWeight: 700,
+                      }}
+                    >
+                      {cuentas[mesaSeleccionada.id].metodo_pago === 'transferencia' ? 'Transferencia' : 'Efectivo'}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="campo">
+                    <label>Método de pago recibido</label>
+                    <select value={metodoPago} onChange={e => setMetodoPago(e.target.value)}>
+                      <option value="efectivo">Efectivo</option>
+                      <option value="transferencia">Transferencia</option>
+                    </select>
+                  </div>
+                )}
                 <button className="btn btn-primario btn-bloque btn-lg" onClick={manejarRegistrarPago} disabled={procesando}>
                   {procesando ? 'Registrando...' : 'Registrar pago y liberar mesa'}
                 </button>
