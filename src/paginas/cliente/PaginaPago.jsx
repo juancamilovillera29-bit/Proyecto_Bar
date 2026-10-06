@@ -36,7 +36,7 @@ export default function PaginaPago() {
 
       const cuentaDatos = await obtenerCuentaActivaDeMesa(mesaDatos.id);
       setCuenta(cuentaDatos);
-      if (cuentaDatos?.metodo_pago) setMetodo(cuentaDatos.metodo_pago);
+      if (!esRecarga) setMetodo(cuentaDatos?.metodo_pago || 'efectivo');
 
       // Si la mesa o cuenta ya están en estado pendiente de pago, reflejar sesión cerrada
       if (mesaDatos.estado === 'pendiente_pago' || cuentaDatos?.estado === 'pendiente_pago') {
@@ -65,6 +65,20 @@ export default function PaginaPago() {
     return () => clearInterval(intervalo);
   }, [codigoQr]);
 
+  async function manejarSeleccionMetodoPago(nuevoMetodo) {
+    setMetodo(nuevoMetodo);
+    setErrorMetodoPago('');
+    if (!cuenta?.id) return;
+
+    try {
+      const cuentaActualizada = await actualizarMetodoPagoCuenta(cuenta.id, nuevoMetodo);
+      setCuenta(cuentaActualizada);
+    } catch (e) {
+      console.error('Error al guardar el método de pago elegido:', e);
+      setErrorMetodoPago(e?.message || 'No se pudo guardar el método de pago. Vuelve a seleccionarlo.');
+    }
+  }
+
   async function manejarSolicitarCuenta() {
     if (!mesa || procesando) return;
     setProcesando(true);
@@ -72,20 +86,6 @@ export default function PaginaPago() {
     try {
       if (!cuenta?.id) {
         throw new Error('No se encontró una cuenta activa para verificar tus pedidos.');
-      }
-
-      async function manejarSeleccionMetodoPago(nuevoMetodo) {
-        setMetodo(nuevoMetodo);
-        setErrorMetodoPago('');
-        if (!cuenta?.id) return;
-
-        try {
-          const cuentaActualizada = await actualizarMetodoPagoCuenta(cuenta.id, nuevoMetodo);
-          setCuenta(cuentaActualizada);
-        } catch (e) {
-          console.error('Error al guardar el método de pago elegido:', e);
-          setErrorMetodoPago(e?.message || 'No se pudo guardar el método de pago. Vuelve a seleccionarlo.');
-        }
       }
 
       // Volver a consultar antes de cerrar la cuenta para usar los estados más recientes.
