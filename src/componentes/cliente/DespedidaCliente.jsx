@@ -1,15 +1,7 @@
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { CheckCircle2, Lock } from 'lucide-react';
 
 export function DespedidaCliente({ codigoQr, mesaNombre, children }) {
-  const [mostrarInstrucciones, setMostrarInstrucciones] = useState(false);
-
-  function manejarSalir() {
-    window.close();
-    setMostrarInstrucciones(true);
-  }
-
   return (
     <div style={{ minHeight: '100vh', background: '#121214', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, color: '#ffffff' }}>
       <div style={{ textAlign: 'center', maxWidth: 400, width: '100%', animation: 'fadeIn 400ms ease both' }}>
@@ -51,23 +43,7 @@ export function DespedidaCliente({ codigoQr, mesaNombre, children }) {
 
         {children}
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 20 }}>
-          <button
-            type="button"
-            onClick={manejarSalir}
-            style={{
-              background: '#e5a93c',
-              color: '#121214',
-              padding: '14px',
-              borderRadius: '16px',
-              fontWeight: 800,
-              fontSize: '1rem',
-              border: 'none',
-              cursor: 'pointer',
-            }}
-          >
-            Salir
-          </button>
+        <div style={{ marginTop: 20 }}>
           <Link
             to={`/mesa/${codigoQr}`}
             style={{
@@ -85,12 +61,6 @@ export function DespedidaCliente({ codigoQr, mesaNombre, children }) {
             Volver al menú
           </Link>
         </div>
-
-        {mostrarInstrucciones && (
-          <p role="status" style={{ color: '#8f9098', margin: '14px 0 0', fontSize: '0.85rem', lineHeight: 1.5 }}>
-            El navegador no permite cerrar una pestaña abierta desde un código QR. Puedes cerrarla manualmente; la sesión de esta mesa ya está finalizada.
-          </p>
-        )}
       </div>
     </div>
   );
