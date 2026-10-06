@@ -150,10 +150,15 @@ export default function Mesas() {
 
   async function manejarRegistrarPago() {
     if (!mesaSeleccionada) return;
-    const cuenta = cuentas[mesaSeleccionada.id];
+    let cuenta = cuentas[mesaSeleccionada.id];
     if (!cuenta) return;
     setProcesando(true);
     try {
+      const cuentaActualizada = await obtenerCuentaActivaDeMesa(mesaSeleccionada.id);
+      if (cuentaActualizada) {
+        cuenta = cuentaActualizada;
+        setCuentas(prev => ({ ...prev, [mesaSeleccionada.id]: cuentaActualizada }));
+      }
       const totalPedidosCalc = (pedidosMesa || []).reduce((acc, p) => {
         return acc + (p.detalles || []).reduce((s, d) => s + (Number(d.precio_unitario) || 0) * (Number(d.cantidad) || 1), 0);
       }, 0);

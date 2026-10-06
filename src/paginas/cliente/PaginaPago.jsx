@@ -6,7 +6,7 @@ import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, CheckCircle2, Banknote, CreditCard, Lock, ShieldCheck } from 'lucide-react';
 import { CargandoSpinner } from '../../componentes/comunes/CargandoSpinner.jsx';
 import { obtenerMesaPorCodigo, actualizarEstadoMesa } from '../../servicios/mesas.js';
-import { obtenerCuentaActivaDeMesa, marcarCuentaPendientePago } from '../../servicios/cuentas.js';
+import { obtenerCuentaActivaDeMesa, marcarCuentaPendientePago, actualizarMetodoPagoCuenta } from '../../servicios/cuentas.js';
 import { obtenerPedidos } from '../../servicios/pedidos.js';
 import { formatearPrecio } from '../../componentes/cliente/TarjetaProducto.jsx';
 import { useCarrito } from '../../contextos/ContextoCarrito.jsx';
@@ -22,6 +22,7 @@ export default function PaginaPago() {
   const [solicitado, setSolicitado] = useState(false);
   const [procesando, setProcesando] = useState(false);
   const [errorSolicitud, setErrorSolicitud] = useState('');
+  const [errorMetodoPago, setErrorMetodoPago] = useState('');
 
   async function cargarDatos(esRecarga = false) {
     try {
@@ -35,6 +36,7 @@ export default function PaginaPago() {
 
       const cuentaDatos = await obtenerCuentaActivaDeMesa(mesaDatos.id);
       setCuenta(cuentaDatos);
+      if (cuentaDatos?.metodo_pago) setMetodo(cuentaDatos.metodo_pago);
 
       // Si la mesa o cuenta ya están en estado pendiente de pago, reflejar sesión cerrada
       if (mesaDatos.estado === 'pendiente_pago' || cuentaDatos?.estado === 'pendiente_pago') {
@@ -70,6 +72,20 @@ export default function PaginaPago() {
     try {
       if (!cuenta?.id) {
         throw new Error('No se encontró una cuenta activa para verificar tus pedidos.');
+      }
+
+      async function manejarSeleccionMetodoPago(nuevoMetodo) {
+        setMetodo(nuevoMetodo);
+        setErrorMetodoPago('');
+        if (!cuenta?.id) return;
+
+        try {
+          const cuentaActualizada = await actualizarMetodoPagoCuenta(cuenta.id, nuevoMetodo);
+          setCuenta(cuentaActualizada);
+        } catch (e) {
+          console.error('Error al guardar el método de pago elegido:', e);
+          setErrorMetodoPago(e?.message || 'No se pudo guardar el método de pago. Vuelve a seleccionarlo.');
+        }
       }
 
       // Volver a consultar antes de cerrar la cuenta para usar los estados más recientes.
@@ -295,7 +311,7 @@ export default function PaginaPago() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <button
               type="button"
-              onClick={() => setMetodo('efectivo')}
+              onClick={() => manejarSeleccionMetodoPago('efectivo')}
               style={{
                 padding: '16px 12px',
                 borderRadius: '14px',
@@ -318,7 +334,7 @@ export default function PaginaPago() {
 
             <button
               type="button"
-              onClick={() => setMetodo('transferencia')}
+              onClick={() => manejarSeleccionMetodoPago('transferencia')}
               style={{
                 padding: '16px 12px',
                 borderRadius: '14px',
@@ -340,6 +356,11 @@ export default function PaginaPago() {
             </button>
           </div>
         </div>
+        {errorMetodoPago && (
+          <p role="alert" style={{ margin: 0, color: '#f87171', fontSize: '0.9rem', lineHeight: 1.5 }}>
+            {errorMetodoPago}
+          </p>
+        )}
 
         {/* Botón pedir la cuenta */}
         {pedidosPendientesEntrega.length > 0 && (

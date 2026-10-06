@@ -92,6 +92,22 @@ export async function marcarCuentaPendientePago(id, metodoPago = 'efectivo') {
   return data;
 }
 
+export async function actualizarMetodoPagoCuenta(id, metodoPago) {
+  if (!supabaseConfigurado) {
+    const cuenta = cuentasMock.find(c => c.id === id);
+    if (cuenta) cuenta.metodo_pago = metodoPago;
+    return cuenta;
+  }
+  const { data, error } = await supabase
+    .from('cuentas')
+    .update({ metodo_pago: metodoPago })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
 export async function cerrarCuenta(id) {
   if (!supabaseConfigurado) {
     const cuenta = cuentasMock.find(c => c.id === id);
