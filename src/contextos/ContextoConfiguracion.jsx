@@ -3,6 +3,7 @@ import {
   obtenerConfiguracionSistema,
   guardarConfiguracionSistema,
   establecerConfiguracionActiva,
+  obtenerConfiguracionActiva,
 } from '../servicios/configuracion.js';
 
 const ContextoConfiguracion = createContext(null);
