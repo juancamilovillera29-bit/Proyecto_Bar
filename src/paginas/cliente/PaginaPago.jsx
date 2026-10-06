@@ -3,8 +3,9 @@
 // ============================================
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, Banknote, CreditCard, Lock, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Banknote, CreditCard } from 'lucide-react';
 import { CargandoSpinner } from '../../componentes/comunes/CargandoSpinner.jsx';
+import { DespedidaCliente } from '../../componentes/cliente/DespedidaCliente.jsx';
 import { obtenerMesaPorCodigo, actualizarEstadoMesa } from '../../servicios/mesas.js';
 import { obtenerCuentaActivaDeMesa, marcarCuentaPendientePago, actualizarMetodoPagoCuenta } from '../../servicios/cuentas.js';
 import { obtenerPedidos } from '../../servicios/pedidos.js';
@@ -20,15 +21,9 @@ export default function PaginaPago() {
   const [metodo, setMetodo]         = useState('efectivo');
   const [cargando, setCargando]     = useState(true);
   const [solicitado, setSolicitado] = useState(false);
-  const [noSePudoCerrar, setNoSePudoCerrar] = useState(false);
   const [procesando, setProcesando] = useState(false);
   const [errorSolicitud, setErrorSolicitud] = useState('');
   const [errorMetodoPago, setErrorMetodoPago] = useState('');
-
-  function manejarSalir() {
-    window.close();
-    if (!window.closed) setNoSePudoCerrar(true);
-  }
 
   async function cargarDatos(esRecarga = false) {
     try {
@@ -137,126 +132,30 @@ export default function PaginaPago() {
 
   if (solicitado) {
     return (
-      <div style={{ minHeight: '100vh', background: '#121214', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, color: '#ffffff' }}>
-        <div style={{ textAlign: 'center', maxWidth: 400, animation: 'fadeIn 400ms ease both' }}>
-          {/* Badge de Sesión Cerrada */}
-          <div style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px',
-            background: 'rgba(239, 68, 68, 0.15)',
-            border: '1px solid rgba(239, 68, 68, 0.35)',
-            color: '#f87171',
-            padding: '6px 14px',
-            borderRadius: '20px',
-            fontSize: '0.8rem',
-            fontWeight: 700,
-            marginBottom: '20px',
-            textTransform: 'uppercase',
-            letterSpacing: '0.05em'
-          }}>
-            <Lock size={13} />
-            Sesión Cerrada Automáticamente
+      <DespedidaCliente codigoQr={codigoQr} mesaNombre={mesa?.nombre}>
+        <div style={{
+          background: '#19191d',
+          border: '1px solid #27272e',
+          borderRadius: '16px',
+          padding: '20px',
+          textAlign: 'center',
+        }}>
+          <div style={{ fontSize: '0.78rem', color: '#8f9098', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.05em' }}>
+            TOTAL A PAGAR
           </div>
-
-          <div style={{
-            width: 80, height: 80, borderRadius: '50%',
-            background: 'rgba(229, 169, 60, 0.15)', border: '2px solid #e5a93c',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 20px',
-            boxShadow: '0 0 24px rgba(229, 169, 60, 0.35)',
-          }}>
-            <CheckCircle2 size={40} color="#e5a93c" />
+          <div style={{ fontSize: '2rem', fontWeight: 800, color: '#e5a93c', marginTop: '6px', fontFamily: 'var(--fuente-titular, sans-serif)' }}>
+            {formatearPrecio(totalAPagar)}
           </div>
-
-          <h2 style={{ fontFamily: 'var(--fuente-titular, sans-serif)', fontSize: '1.8rem', color: '#ffffff', marginBottom: 10 }}>
-            ¡Cuenta solicitada!
-          </h2>
-          <p style={{ color: '#a1a1aa', marginBottom: 20, lineHeight: 1.6, fontSize: '0.95rem' }}>
-            Tu sesión en la <strong>{mesa?.nombre || 'Mesa'}</strong> ha finalizado. Un mesero se acercará en breve para recibir tu pago en <strong>{metodo === 'efectivo' ? 'Efectivo' : 'Transferencia'}</strong>.
-          </p>
-
-          <div style={{
-            background: '#19191d',
-            border: '1px solid #27272e',
-            borderRadius: '16px',
-            padding: '20px',
-            marginBottom: '20px',
-            textAlign: 'center',
-          }}>
-            <div style={{ fontSize: '0.78rem', color: '#8f9098', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.05em' }}>
-              TOTAL A PAGAR
+          {pedidos.length > 0 && (
+            <div style={{ fontSize: '0.82rem', color: '#71717a', marginTop: '8px' }}>
+              {pedidos.length} pedido{pedidos.length !== 1 ? 's' : ''} registrado{pedidos.length !== 1 ? 's' : ''}
             </div>
-            <div style={{ fontSize: '2rem', fontWeight: 800, color: '#e5a93c', marginTop: '6px', fontFamily: 'var(--fuente-titular, sans-serif)' }}>
-              {formatearPrecio(totalAPagar)}
-            </div>
-            {pedidos.length > 0 && (
-              <div style={{ fontSize: '0.82rem', color: '#71717a', marginTop: '8px' }}>
-                {pedidos.length} pedido{pedidos.length !== 1 ? 's' : ''} registrado{pedidos.length !== 1 ? 's' : ''}
-              </div>
-            )}
-          </div>
-
-          <div style={{
-            background: 'rgba(255, 255, 255, 0.03)',
-            border: '1px dashed #2e2e38',
-            borderRadius: '14px',
-            padding: '14px',
-            fontSize: '0.85rem',
-            color: '#8f9098',
-            lineHeight: 1.5,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            textAlign: 'left'
-          }}>
-            <ShieldCheck size={24} color="#e5a93c" style={{ flexShrink: 0 }} />
-            <span>
-              La mesa ha sido bloqueada para nuevos pedidos mientras se completa el cobro. ¡Muchas gracias por visitarnos!
-            </span>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 20 }}>
-            <button
-              type="button"
-              onClick={manejarSalir}
-              style={{
-                background: '#e5a93c',
-                color: '#121214',
-                padding: '14px',
-                borderRadius: '16px',
-                fontWeight: 800,
-                fontSize: '1rem',
-                border: 'none',
-                cursor: 'pointer',
-              }}
-            >
-              Salir
-            </button>
-            <Link
-              to={`/mesa/${codigoQr}`}
-              style={{
-                background: '#19191d',
-                color: '#8f9098',
-                border: '1px solid #27272e',
-                padding: '14px',
-                borderRadius: '16px',
-                fontWeight: 600,
-                textDecoration: 'none',
-                textAlign: 'center',
-                fontSize: '0.95rem',
-              }}
-            >
-              Volver al menú
-            </Link>
-            {noSePudoCerrar && (
-              <p role="status" style={{ color: '#8f9098', margin: 0, fontSize: '0.85rem', lineHeight: 1.5 }}>
-                El navegador no permitió cerrar esta pestaña. Puedes cerrarla manualmente.
-              </p>
-            )}
+          )}
+          <div style={{ color: '#8f9098', marginTop: 12, fontSize: '0.9rem' }}>
+            Método de pago: {metodo === 'efectivo' ? 'Efectivo' : 'Transferencia'}
           </div>
         </div>
-      </div>
+      </DespedidaCliente>
     );
   }
 

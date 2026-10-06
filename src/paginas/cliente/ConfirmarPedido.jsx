@@ -3,8 +3,9 @@
 // ============================================
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, CheckCircle, ShoppingBag, AlertCircle, Plus, Minus, Send, Wine, Lock } from 'lucide-react';
+import { ArrowLeft, CheckCircle, ShoppingBag, AlertCircle, Plus, Minus, Send, Wine } from 'lucide-react';
 import { useCarrito } from '../../contextos/ContextoCarrito.jsx';
+import { DespedidaCliente } from '../../componentes/cliente/DespedidaCliente.jsx';
 import { crearPedido } from '../../servicios/pedidos.js';
 import { obtenerMesaPorCodigo } from '../../servicios/mesas.js';
 import { obtenerCuentaActivaDeMesa, abrirCuenta } from '../../servicios/cuentas.js';
@@ -135,52 +136,7 @@ export default function ConfirmarPedido() {
 
   if (mesaActual?.estado === 'pendiente_pago') {
     return (
-      <div style={{ minHeight: '100vh', background: '#121214', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-        <div style={{ textAlign: 'center', maxWidth: 360, animation: 'fadeIn 400ms ease both' }}>
-          <div style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px',
-            background: 'rgba(239, 68, 68, 0.15)',
-            border: '1px solid rgba(239, 68, 68, 0.35)',
-            color: '#f87171',
-            padding: '6px 14px',
-            borderRadius: '20px',
-            fontSize: '0.8rem',
-            fontWeight: 700,
-            marginBottom: '20px',
-            textTransform: 'uppercase',
-            letterSpacing: '0.05em'
-          }}>
-            <Lock size={13} />
-            Sesión Cerrada
-          </div>
-
-          <h2 style={{ fontFamily: 'var(--fuente-titular, sans-serif)', fontSize: '1.6rem', color: '#ffffff', marginBottom: 10 }}>
-            Cuenta en proceso de pago
-          </h2>
-          <p style={{ color: '#8f9098', marginBottom: 24, lineHeight: 1.6, fontSize: '0.92rem' }}>
-            La cuenta de la <strong>{mesaActual?.nombre}</strong> ya fue solicitada y la sesión está cerrada. El mesero se acercará a cobrar.
-          </p>
-
-          <Link
-            to={`/mesa/${codigoQr}/pago`}
-            style={{
-              display: 'block',
-              background: '#e5a93c',
-              color: '#121214',
-              padding: '14px',
-              borderRadius: '16px',
-              fontWeight: 800,
-              textDecoration: 'none',
-              textAlign: 'center',
-              fontSize: '0.95rem',
-            }}
-          >
-            Ver estado de la cuenta
-          </Link>
-        </div>
-      </div>
+      <DespedidaCliente codigoQr={codigoQr} mesaNombre={mesaActual?.nombre} />
     );
   }
 
