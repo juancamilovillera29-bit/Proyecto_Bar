@@ -409,27 +409,25 @@ export default function Mesas() {
                         ))}
                       </div>
                     ))}
+                    <div style={{
+                      borderTop: '1px solid var(--borde-sutil)',
+                      paddingTop: 8,
+                      color: 'var(--texto-primario)',
+                      fontSize: '12px',
+                    }}>
+                      <span style={{ color: 'var(--texto-terciario)' }}>Método de pago elegido: </span>
+                      <strong style={{ color: 'var(--dorado-puro)' }}>
+                        {cuentas[mesaSeleccionada.id]?.metodo_pago === 'transferencia'
+                          ? 'Transferencia'
+                          : cuentas[mesaSeleccionada.id]?.metodo_pago === 'efectivo'
+                            ? 'Efectivo'
+                            : 'No seleccionado'}
+                      </strong>
+                    </div>
                   </div>
                 )}
 
-                {cuentas[mesaSeleccionada.id]?.metodo_pago ? (
-                  <div className="campo">
-                    <label>Método elegido por el cliente</label>
-                    <div
-                      role="status"
-                      style={{
-                        padding: '12px 14px',
-                        border: '1px solid var(--dorado-puro)',
-                        borderRadius: 'var(--radio-md)',
-                        background: 'var(--superficie-2)',
-                        color: 'var(--texto-primario)',
-                        fontWeight: 700,
-                      }}
-                    >
-                      {cuentas[mesaSeleccionada.id].metodo_pago === 'transferencia' ? 'Transferencia' : 'Efectivo'}
-                    </div>
-                  </div>
-                ) : (
+                {!cuentas[mesaSeleccionada.id]?.metodo_pago && (
                   <div className="campo">
                     <label>
                       {cuentas[mesaSeleccionada.id]?.estado === 'pendiente_pago'
