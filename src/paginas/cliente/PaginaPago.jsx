@@ -93,7 +93,7 @@ export default function PaginaPago() {
       const pedidosActivos = (pedidosActualizados || []).filter(p => p.estado !== 'cancelado');
       setPedidos(pedidosActivos);
 
-      if (pedidosActivos.some(p => p.estado !== 'entregado')) {
+      if (pedidosActivos.length === 0 || pedidosActivos.some(p => p.estado !== 'entregado')) {
         setErrorSolicitud('Aún hay productos pendientes de entrega. Podrás solicitar la cuenta cuando todos tus pedidos estén entregados.');
         return;
       }
@@ -121,7 +121,13 @@ export default function PaginaPago() {
     return acc + sub;
   }, 0);
   const totalAPagar = totalCalculado;
-  const pedidosPendientesEntrega = pedidos.filter(p => p.estado !== 'entregado');
+  const pedidosActivos = pedidos.filter(p => p.estado !== 'cancelado');
+  const pedidosPendientesEntrega = pedidosActivos.filter(p => p.estado !== 'entregado');
+  const todosPedidosEntregados = pedidosActivos.length > 0 && pedidosPendientesEntrega.length === 0;
+  const puedeSolicitarCuenta = Boolean(cuenta?.id)
+    && totalAPagar > 0
+    && todosPedidosEntregados
+    && !procesando;
 
   if (solicitado) {
     return (
@@ -368,6 +374,11 @@ export default function PaginaPago() {
             No puedes solicitar la cuenta todavía: espera a que te entreguen todos tus productos ({pedidosPendientesEntrega.length} pedido{pedidosPendientesEntrega.length === 1 ? '' : 's'} pendiente{pedidosPendientesEntrega.length === 1 ? '' : 's'}).
           </p>
         )}
+        {todosPedidosEntregados && (
+          <p role="status" style={{ margin: 0, color: '#4ade80', fontSize: '0.9rem', lineHeight: 1.5 }}>
+            Todos tus pedidos fueron entregados. Ya puedes solicitar la cuenta.
+          </p>
+        )}
         {errorSolicitud && (
           <p role="alert" style={{ margin: 0, color: '#f87171', fontSize: '0.9rem', lineHeight: 1.5 }}>
             {errorSolicitud}
@@ -376,24 +387,28 @@ export default function PaginaPago() {
         <button
           type="button"
           onClick={manejarSolicitarCuenta}
-          disabled={procesando || totalAPagar === 0 || pedidosPendientesEntrega.length > 0}
+          disabled={!puedeSolicitarCuenta}
           style={{
-            background: '#e5a93c',
+            background: puedeSolicitarCuenta ? '#e5a93c' : '#5b513e',
             border: 'none',
             borderRadius: '16px',
             padding: '16px 20px',
-            color: '#121214',
+            color: puedeSolicitarCuenta ? '#121214' : '#aaa49a',
             fontWeight: 800,
             fontSize: '1.08rem',
-            cursor: procesando || pedidosPendientesEntrega.length > 0 ? 'not-allowed' : 'pointer',
-            boxShadow: '0 8px 24px rgba(229, 169, 60, 0.35)',
-            opacity: procesando || pedidosPendientesEntrega.length > 0 ? 0.7 : 1,
+            cursor: puedeSolicitarCuenta ? 'pointer' : 'not-allowed',
+            boxShadow: puedeSolicitarCuenta ? '0 8px 24px rgba(229, 169, 60, 0.35)' : 'none',
+            opacity: puedeSolicitarCuenta ? 1 : 0.7,
             transition: 'transform 0.15s ease',
           }}
           onMouseDown={e => !procesando && (e.currentTarget.style.transform = 'scale(0.98)')}
           onMouseUp={e => !procesando && (e.currentTarget.style.transform = 'scale(1)')}
         >
-          {procesando ? 'Verificando pedidos...' : pedidosPendientesEntrega.length > 0 ? 'Esperando entrega de productos' : 'Pedir la cuenta al mesero'}
+          {procesando
+            ? 'Verificando pedidos...'
+            : todosPedidosEntregados
+              ? 'Solicitar cuenta'
+              : 'Esperando entrega de productos'}
         </button>
       </div>
     </div>
