@@ -6,6 +6,7 @@ import { Plus, Pencil, Trash2, Search, ToggleLeft, ToggleRight, Package } from '
 import { Modal } from '../../componentes/comunes/Modal.jsx';
 import { CargandoSpinner } from '../../componentes/comunes/CargandoSpinner.jsx';
 import { obtenerProductos, crearProducto, actualizarProducto, eliminarProducto, toggleActivoProducto } from '../../servicios/productos.js';
+import { subirImagenProducto } from '../../servicios/imagenes.js';
 
 const productoVacio = { nombre: '', descripcion: '', precio_venta: '', costo: '', stock: '', stock_minimo: 5, imagen_url: '', activo: true };
 
@@ -16,8 +17,20 @@ export default function Productos() {
   const [modalAbierto, setModalAbierto] = useState(false);
   const [productoEditando, setProductoEditando] = useState(null);
   const [formulario, setFormulario] = useState(productoVacio);
+  const [imagenArchivo, setImagenArchivo] = useState(null);
+  const [vistaPreviaArchivo, setVistaPreviaArchivo] = useState('');
   const [guardando, setGuardando]   = useState(false);
   const [errorGuardado, setErrorGuardado] = useState('');
+
+  useEffect(() => {
+    if (!imagenArchivo) {
+      setVistaPreviaArchivo('');
+      return undefined;
+    }
+    const vistaPrevia = URL.createObjectURL(imagenArchivo);
+    setVistaPreviaArchivo(vistaPrevia);
+    return () => URL.revokeObjectURL(vistaPrevia);
+  }, [imagenArchivo]);
 
   useEffect(() => {
     cargarProductos();
@@ -39,6 +52,7 @@ export default function Productos() {
 
   function abrirModal(producto = null) {
     setProductoEditando(producto);
+    setImagenArchivo(null);
     setFormulario(producto ? {
       nombre: producto.nombre ?? '',
       descripcion: producto.descripcion ?? '',
@@ -53,6 +67,14 @@ export default function Productos() {
     setModalAbierto(true);
   }
 
+  function manejarSeleccionImagen(e) {
+    const archivo = e.target.files?.[0];
+    if (!archivo) return;
+    setImagenArchivo(archivo);
+    setFormulario(f => ({ ...f, imagen_url: '' }));
+    setErrorGuardado('');
+  }
+
   async function guardarProducto(e) {
     e.preventDefault();
     setGuardando(true);
@@ -65,12 +87,16 @@ export default function Productos() {
         stock: parseInt(formulario.stock || 0, 10),
         stock_minimo: parseInt(formulario.stock_minimo || 5, 10),
       };
+      if (imagenArchivo) {
+        datos.imagen_url = await subirImagenProducto(imagenArchivo);
+      }
       if (productoEditando) {
         await actualizarProducto(productoEditando.id, datos);
       } else {
         await crearProducto(datos);
       }
       await cargarProductos();
+      setImagenArchivo(null);
       setModalAbierto(false);
     } catch (error) {
       console.error('Error al guardar producto:', error);
@@ -265,8 +291,34 @@ export default function Productos() {
               <input type="number" min="0" value={formulario.stock_minimo} onChange={e => setFormulario(f => ({ ...f, stock_minimo: e.target.value }))} placeholder="5" />
             </div>
             <div className="campo" style={{ gridColumn: '1 / -1' }}>
-              <label>URL de imagen</label>
-              <input type="url" value={formulario.imagen_url || ''} onChange={e => setFormulario(f => ({ ...f, imagen_url: e.target.value }))} placeholder="https://..." />
+              <label htmlFor="imagen-producto">Imagen del producto</label>
+              <input
+                id="imagen-producto"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={manejarSeleccionImagen}
+                disabled={guardando}
+              />
+              <small style={{ color: 'var(--texto-terciario)' }}>JPG, PNG o WebP, máximo 5 MB.</small>
+              {(vistaPreviaArchivo || formulario.imagen_url) && (
+                <img
+                  src={vistaPreviaArchivo || formulario.imagen_url}
+                  alt="Vista previa del producto"
+                  style={{ display: 'block', width: 120, height: 120, objectFit: 'cover', borderRadius: 'var(--radio-md)', marginTop: 10 }}
+                />
+              )}
+              <label htmlFor="url-imagen-producto" style={{ marginTop: 12 }}>O pega una URL de imagen</label>
+              <input
+                id="url-imagen-producto"
+                type="url"
+                value={formulario.imagen_url || ''}
+                onChange={e => {
+                  setImagenArchivo(null);
+                  setFormulario(f => ({ ...f, imagen_url: e.target.value }));
+                }}
+                placeholder="https://..."
+                disabled={guardando}
+              />
             </div>
           </div>
 
