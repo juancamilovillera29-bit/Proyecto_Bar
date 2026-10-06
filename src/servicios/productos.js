@@ -75,16 +75,24 @@ export async function crearProducto(datos) {
   if (!supabaseConfigurado) {
     const nuevo = { ...datos, id: `prod-${Date.now()}`, creado_en: new Date().toISOString() };
     productosMock.push(nuevo);
+    inventarioMock.push({
+      id: `inv-${nuevo.id}`,
+      producto_id: nuevo.id,
+      stock_actual: nuevo.stock || 0,
+      stock_minimo: nuevo.stock_minimo || 5,
+      actualizado_en: new Date().toISOString(),
+    });
     return nuevo;
   }
   const { data, error } = await supabase.from('productos').insert(datos).select().single();
   if (error) throw error;
   // Crear registro en inventario al crear producto
-  await supabase.from('inventario').upsert({
+  const { error: errorInventario } = await supabase.from('inventario').upsert({
     producto_id: data.id,
     stock_actual: datos.stock || 0,
     stock_minimo: datos.stock_minimo || 5,
   }, { onConflict: 'producto_id' });
+  if (errorInventario) throw errorInventario;
   return data;
 }
 
@@ -97,6 +105,15 @@ export async function actualizarProducto(id, datos) {
       if (inv) {
         if (datos.stock !== undefined) inv.stock_actual = datos.stock;
         if (datos.stock_minimo !== undefined) inv.stock_minimo = datos.stock_minimo;
+        inv.actualizado_en = new Date().toISOString();
+      } else if (datos.stock !== undefined || datos.stock_minimo !== undefined) {
+        inventarioMock.push({
+          id: `inv-${id}`,
+          producto_id: id,
+          stock_actual: datos.stock ?? productosMock[idx].stock,
+          stock_minimo: datos.stock_minimo ?? productosMock[idx].stock_minimo ?? 5,
+          actualizado_en: new Date().toISOString(),
+        });
       }
     }
     return productosMock[idx];
@@ -106,18 +123,17 @@ export async function actualizarProducto(id, datos) {
 
   // Si se actualizó el stock o stock_minimo, sincronizar inventario
   if (datos.stock !== undefined || datos.stock_minimo !== undefined) {
-    try {
-      const updateInv = {
-        producto_id: id,
-        actualizado_en: new Date().toISOString(),
-      };
-      if (datos.stock !== undefined) updateInv.stock_actual = datos.stock;
-      if (datos.stock_minimo !== undefined) updateInv.stock_minimo = datos.stock_minimo;
+    const updateInv = {
+      producto_id: id,
+      actualizado_en: new Date().toISOString(),
+    };
+    if (datos.stock !== undefined) updateInv.stock_actual = datos.stock;
+    if (datos.stock_minimo !== undefined) updateInv.stock_minimo = datos.stock_minimo;
 
-      await supabase.from('inventario').upsert(updateInv, { onConflict: 'producto_id' });
-    } catch (e) {
-      console.warn('Error al sincronizar inventario tras actualizar producto:', e);
-    }
+    const { error: errorInventario } = await supabase
+      .from('inventario')
+      .upsert(updateInv, { onConflict: 'producto_id' });
+    if (errorInventario) throw errorInventario;
   }
 
   return data;
@@ -127,6 +143,8 @@ export async function eliminarProducto(id) {
   if (!supabaseConfigurado) {
     const idx = productosMock.findIndex(p => p.id === id);
     if (idx !== -1) productosMock.splice(idx, 1);
+    const inventarioIdx = inventarioMock.findIndex(i => i.producto_id === id);
+    if (inventarioIdx !== -1) inventarioMock.splice(inventarioIdx, 1);
     return true;
   }
   const { error } = await supabase.from('productos').delete().eq('id', id);

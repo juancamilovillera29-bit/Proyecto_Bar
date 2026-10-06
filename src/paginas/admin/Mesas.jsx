@@ -13,7 +13,6 @@ import { obtenerCuentaActivaDeMesa, abrirCuenta, cerrarCuenta } from '../../serv
 import { registrarVenta } from '../../servicios/ventas.js';
 import { obtenerPedidos } from '../../servicios/pedidos.js';
 import { formatearPrecio } from '../../componentes/cliente/TarjetaProducto.jsx';
-import { descontarStockPorPedidos } from '../../servicios/inventario.js';
 
 export default function Mesas() {
   const [mesas, setMesas]           = useState([]);
@@ -88,6 +87,7 @@ export default function Mesas() {
     setPedidosMesa([]);
     setModalDetalle(true);
     const cuenta = cuentas[mesa.id];
+    setMetodoPago(cuenta?.metodo_pago || 'efectivo');
     if (cuenta) {
       try {
         const peds = await obtenerPedidos({ cuenta_id: cuenta.id });
@@ -159,7 +159,7 @@ export default function Mesas() {
         cuenta_id: cuenta.id,
         mesa_id: mesaSeleccionada.id,
         total: totalFinal,
-        metodo_pago: metodoPago,
+        metodo_pago: cuenta.metodo_pago || metodoPago,
       });
 
       await cerrarCuenta(cuenta.id);
@@ -404,8 +404,16 @@ export default function Mesas() {
                 )}
 
                 <div className="campo">
-                  <label>Método de pago recibido</label>
-                  <select value={metodoPago} onChange={e => setMetodoPago(e.target.value)}>
+                  <label>
+                    {cuentas[mesaSeleccionada.id]?.metodo_pago
+                      ? 'Método elegido por el cliente'
+                      : 'Método de pago recibido'}
+                  </label>
+                  <select
+                    value={cuentas[mesaSeleccionada.id]?.metodo_pago || metodoPago}
+                    onChange={e => setMetodoPago(e.target.value)}
+                    disabled={Boolean(cuentas[mesaSeleccionada.id]?.metodo_pago)}
+                  >
                     <option value="efectivo">Efectivo</option>
                     <option value="transferencia">Transferencia</option>
                   </select>
@@ -574,5 +582,3 @@ export default function Mesas() {
     </div>
   );
 }
-
-

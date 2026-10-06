@@ -2,7 +2,8 @@
 // Servicio: Pedidos
 // ============================================
 import { supabase, supabaseConfigurado } from '../config/supabase.js';
-import { pedidosMock } from '../datos/datosMock.js';
+import { pedidosMock, productosMock } from '../datos/datosMock.js';
+import { descontarStockPorPedidos, registrarMovimiento } from './inventario.js';
 
 export async function obtenerPedidos(filtros = {}) {
   if (!supabaseConfigurado) {
@@ -46,14 +47,6 @@ export async function crearPedido(datos) {
       }
     }
 
-    // Descontar stock en mock
-    for (const d of detalles) {
-      const prod = productosMock.find(p => p.id === d.producto_id);
-      if (prod) {
-        prod.stock = Math.max(0, prod.stock - d.cantidad);
-      }
-    }
-
     const nuevoPedido = {
       ...datosPedido,
       id: `ped-${Date.now()}`,
@@ -63,6 +56,7 @@ export async function crearPedido(datos) {
       detalles: detalles.map((d, i) => ({ ...d, id: `det-${Date.now()}-${i}` })),
       mesa: { numero: parseInt(datosPedido.mesa_id.split('-')[1]) || 1 },
     };
+    await descontarStockPorPedidos([nuevoPedido], `Pedido mesa (ID: ${nuevoPedido.id.slice(0, 8)})`);
     pedidosMock.unshift(nuevoPedido);
     return nuevoPedido;
   }
@@ -153,32 +147,8 @@ export async function crearPedido(datos) {
     throw errorDetalles;
   }
 
-  // 5. Descontar stock en la tabla productos y registrar movimientos de inventario
-  try {
-    for (const d of detalles) {
-      const p = prodsBD?.find(item => item.id === d.producto_id);
-      const stockActual = p ? (typeof p.stock === 'number' ? p.stock : parseInt(p.stock ?? '0', 10)) : 0;
-      const nuevoStock = Math.max(0, stockActual - d.cantidad);
-      
-      // Actualizar tabla productos
-      await supabase
-        .from('productos')
-        .update({ stock: nuevoStock })
-        .eq('id', d.producto_id);
-
-      // Registrar movimiento de inventario (actualiza inventario por trigger o update)
-      await supabase
-        .from('movimientos_inventario')
-        .insert({
-          producto_id: d.producto_id,
-          tipo: 'salida',
-          cantidad: d.cantidad,
-          motivo: `Pedido mesa (ID: ${pedido.id.slice(0, 8)})`,
-        });
-    }
-  } catch (errStock) {
-    console.warn('Advertencia al descontar stock en base de datos:', errStock);
-  }
+  // 5. Descontar una sola vez mediante movimientos de inventario.
+  await descontarStockPorPedidos([{ detalles }], `Pedido mesa (ID: ${pedido.id.slice(0, 8)})`);
 
   // 6. Actualizar mesa a ocupada automáticamente
   if (datosPedido.mesa_id) {
@@ -226,10 +196,12 @@ export async function actualizarEstadoPedido(id, estado) {
       // Si se cancela, devolver stock
       if (estado === 'cancelado' && estadoAnterior !== 'cancelado' && pedido.detalles) {
         for (const d of pedido.detalles) {
-          const prod = productosMock.find(p => p.id === d.producto_id);
-          if (prod) {
-            prod.stock = (prod.stock || 0) + (d.cantidad || 1);
-          }
+          await registrarMovimiento({
+            producto_id: d.producto_id,
+            tipo: 'entrada',
+            cantidad: d.cantidad || 1,
+            motivo: `Cancelación pedido (ID: ${id.slice(0, 8)})`,
+          });
         }
       }
     }
@@ -255,35 +227,15 @@ export async function actualizarEstadoPedido(id, estado) {
     .single();
   if (error) throw error;
 
-  // Si se canceló el pedido, reponer stock
+  // Si se canceló el pedido, reponer stock mediante un movimiento de entrada.
   if (estado === 'cancelado' && pedidoPrevio && pedidoPrevio.estado !== 'cancelado' && pedidoPrevio.detalles) {
-    try {
-      for (const d of pedidoPrevio.detalles) {
-        const { data: prodData } = await supabase
-          .from('productos')
-          .select('stock')
-          .eq('id', d.producto_id)
-          .single();
-        
-        const stockActual = prodData ? (typeof prodData.stock === 'number' ? prodData.stock : parseInt(prodData.stock ?? '0', 10)) : 0;
-        const nuevoStock = stockActual + (d.cantidad || 1);
-
-        await supabase
-          .from('productos')
-          .update({ stock: nuevoStock })
-          .eq('id', d.producto_id);
-
-        await supabase
-          .from('movimientos_inventario')
-          .insert({
-            producto_id: d.producto_id,
-            tipo: 'entrada',
-            cantidad: d.cantidad || 1,
-            motivo: `Cancelación pedido (ID: ${id.slice(0, 8)})`,
-          });
-      }
-    } catch (eReponer) {
-      console.warn('Error al reponer stock tras cancelar pedido:', eReponer);
+    for (const d of pedidoPrevio.detalles) {
+      await registrarMovimiento({
+        producto_id: d.producto_id,
+        tipo: 'entrada',
+        cantidad: d.cantidad || 1,
+        motivo: `Cancelación pedido (ID: ${id.slice(0, 8)})`,
+      });
     }
   }
 

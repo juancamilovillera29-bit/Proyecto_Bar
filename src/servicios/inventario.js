@@ -46,32 +46,32 @@ export async function registrarMovimiento(datos) {
     return nuevo;
   }
 
-  // 1. Insertar movimiento
-  const { data, error } = await supabase.from('movimientos_inventario').insert(datos).select().single();
-  if (error) throw error;
+  const { data: producto, error: errorProducto } = await supabase
+    .from('productos')
+    .select('stock, stock_minimo')
+    .eq('id', datos.producto_id)
+    .single();
+  if (errorProducto) throw errorProducto;
 
-  // 2. Sincronizar explícitamente tabla productos por si los triggers de BD no están activos
-  try {
-    const { data: prodActual } = await supabase
-      .from('productos')
-      .select('stock')
-      .eq('id', datos.producto_id)
-      .single();
-    
-    if (prodActual) {
-      const stockPrev = typeof prodActual.stock === 'number' ? prodActual.stock : parseInt(prodActual.stock ?? '0', 10);
-      let nuevoStock = stockPrev;
-      if (datos.tipo === 'entrada') nuevoStock = stockPrev + datos.cantidad;
-      else if (datos.tipo === 'salida') nuevoStock = Math.max(0, stockPrev - datos.cantidad);
-      else if (datos.tipo === 'ajuste') nuevoStock = datos.cantidad;
+  const { data: inventario, error: errorInventario } = await supabase
+    .from('inventario')
+    .select('producto_id')
+    .eq('producto_id', datos.producto_id)
+    .maybeSingle();
+  if (errorInventario) throw errorInventario;
 
-      await supabase.from('productos').update({ stock: nuevoStock }).eq('id', datos.producto_id);
-      await supabase.from('inventario').update({ stock_actual: nuevoStock, actualizado_en: new Date().toISOString() }).eq('producto_id', datos.producto_id);
-    }
-  } catch (e) {
-    console.warn('Error al sincronizar stock de producto tras movimiento:', e);
+  if (!inventario) {
+    const { error: errorCrearInventario } = await supabase.from('inventario').upsert({
+      producto_id: datos.producto_id,
+      stock_actual: producto.stock,
+      stock_minimo: producto.stock_minimo,
+    }, { onConflict: 'producto_id' });
+    if (errorCrearInventario) throw errorCrearInventario;
   }
 
+  // El trigger de movimientos_inventario sincroniza productos e inventario.
+  const { data, error } = await supabase.from('movimientos_inventario').insert(datos).select().single();
+  if (error) throw error;
   return data;
 }
 
@@ -100,40 +100,7 @@ export async function descontarStockPorPedidos(pedidos, motivo = 'Venta consumid
   const entradas = Object.entries(consumoPorProducto);
   if (entradas.length === 0) return;
 
-  if (!supabaseConfigurado) {
-    // En modo mock, descontar del inventario y productos simulados
-    for (const [producto_id, cantidad] of entradas) {
-      const inv = inventarioMock.find(i => i.producto_id === producto_id);
-      const prod = productosMock.find(p => p.id === producto_id);
-      if (inv) inv.stock_actual = Math.max(0, inv.stock_actual - cantidad);
-      if (prod) prod.stock = Math.max(0, (prod.stock || 0) - cantidad);
-    }
-    return;
-  }
-
   for (const [producto_id, cantidad] of entradas) {
-    try {
-      const { data: prodActual } = await supabase
-        .from('productos')
-        .select('stock')
-        .eq('id', producto_id)
-        .single();
-      
-      const stockPrev = prodActual ? (typeof prodActual.stock === 'number' ? prodActual.stock : parseInt(prodActual.stock ?? '0', 10)) : 0;
-      const nuevoStock = Math.max(0, stockPrev - cantidad);
-
-      await supabase.from('productos').update({ stock: nuevoStock }).eq('id', producto_id);
-      await supabase.from('inventario').update({ stock_actual: nuevoStock, actualizado_en: new Date().toISOString() }).eq('producto_id', producto_id);
-      
-      await supabase.from('movimientos_inventario').insert({
-        producto_id,
-        tipo: 'salida',
-        cantidad,
-        motivo,
-      });
-    } catch (e) {
-      console.warn('Error al descontar stock por producto:', e);
-    }
+    await registrarMovimiento({ producto_id, tipo: 'salida', cantidad, motivo });
   }
 }
-

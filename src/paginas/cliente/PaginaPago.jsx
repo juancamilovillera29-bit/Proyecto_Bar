@@ -21,6 +21,7 @@ export default function PaginaPago() {
   const [cargando, setCargando]     = useState(true);
   const [solicitado, setSolicitado] = useState(false);
   const [procesando, setProcesando] = useState(false);
+  const [errorSolicitud, setErrorSolicitud] = useState('');
 
   async function cargarDatos(esRecarga = false) {
     try {
@@ -63,12 +64,25 @@ export default function PaginaPago() {
   }, [codigoQr]);
 
   async function manejarSolicitarCuenta() {
-    if (!mesa) return;
+    if (!mesa || procesando) return;
     setProcesando(true);
+    setErrorSolicitud('');
     try {
-      if (cuenta?.id) {
-        await marcarCuentaPendientePago(cuenta.id);
+      if (!cuenta?.id) {
+        throw new Error('No se encontró una cuenta activa para verificar tus pedidos.');
       }
+
+      // Volver a consultar antes de cerrar la cuenta para usar los estados más recientes.
+      const pedidosActualizados = await obtenerPedidos({ cuenta_id: cuenta.id });
+      const pedidosActivos = (pedidosActualizados || []).filter(p => p.estado !== 'cancelado');
+      setPedidos(pedidosActivos);
+
+      if (pedidosActivos.some(p => p.estado !== 'entregado')) {
+        setErrorSolicitud('Aún hay productos pendientes de entrega. Podrás solicitar la cuenta cuando todos tus pedidos estén entregados.');
+        return;
+      }
+
+      await marcarCuentaPendientePago(cuenta.id, metodo);
       await actualizarEstadoMesa(mesa.id, 'pendiente_pago');
       
       // Cerrar sesión del cliente automáticamente y limpiar almacenamiento
@@ -77,6 +91,7 @@ export default function PaginaPago() {
       setSolicitado(true);
     } catch (e) {
       console.error('Error al solicitar cuenta:', e);
+      setErrorSolicitud(e?.message || 'No se pudo verificar la entrega de tus pedidos. Inténtalo nuevamente.');
     } finally {
       setProcesando(false);
     }
@@ -90,6 +105,7 @@ export default function PaginaPago() {
     return acc + sub;
   }, 0);
   const totalAPagar = totalCalculado;
+  const pedidosPendientesEntrega = pedidos.filter(p => p.estado !== 'entregado');
 
   if (solicitado) {
     return (
@@ -326,10 +342,20 @@ export default function PaginaPago() {
         </div>
 
         {/* Botón pedir la cuenta */}
+        {pedidosPendientesEntrega.length > 0 && (
+          <p role="status" style={{ margin: 0, color: '#fbbf24', fontSize: '0.9rem', lineHeight: 1.5 }}>
+            No puedes solicitar la cuenta todavía: espera a que te entreguen todos tus productos ({pedidosPendientesEntrega.length} pedido{pedidosPendientesEntrega.length === 1 ? '' : 's'} pendiente{pedidosPendientesEntrega.length === 1 ? '' : 's'}).
+          </p>
+        )}
+        {errorSolicitud && (
+          <p role="alert" style={{ margin: 0, color: '#f87171', fontSize: '0.9rem', lineHeight: 1.5 }}>
+            {errorSolicitud}
+          </p>
+        )}
         <button
           type="button"
           onClick={manejarSolicitarCuenta}
-          disabled={procesando || totalAPagar === 0}
+          disabled={procesando || totalAPagar === 0 || pedidosPendientesEntrega.length > 0}
           style={{
             background: '#e5a93c',
             border: 'none',
@@ -338,18 +364,17 @@ export default function PaginaPago() {
             color: '#121214',
             fontWeight: 800,
             fontSize: '1.08rem',
-            cursor: procesando ? 'not-allowed' : 'pointer',
+            cursor: procesando || pedidosPendientesEntrega.length > 0 ? 'not-allowed' : 'pointer',
             boxShadow: '0 8px 24px rgba(229, 169, 60, 0.35)',
-            opacity: procesando ? 0.7 : 1,
+            opacity: procesando || pedidosPendientesEntrega.length > 0 ? 0.7 : 1,
             transition: 'transform 0.15s ease',
           }}
           onMouseDown={e => !procesando && (e.currentTarget.style.transform = 'scale(0.98)')}
           onMouseUp={e => !procesando && (e.currentTarget.style.transform = 'scale(1)')}
         >
-          {procesando ? 'Solicitando...' : 'Pedir la cuenta al mesero'}
+          {procesando ? 'Verificando pedidos...' : pedidosPendientesEntrega.length > 0 ? 'Esperando entrega de productos' : 'Pedir la cuenta al mesero'}
         </button>
       </div>
     </div>
   );
 }
-

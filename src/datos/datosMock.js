@@ -53,7 +53,13 @@ export const cuentasMock = [];
 
 export const ventasMock = [];
 
-export const inventarioMock = [];
+export const inventarioMock = productosMock.map(producto => ({
+  id: `inv-${producto.id}`,
+  producto_id: producto.id,
+  stock_actual: producto.stock,
+  stock_minimo: producto.stock_minimo,
+  actualizado_en: new Date().toISOString(),
+}));
 
 export const movimientosInventarioMock = [];
 

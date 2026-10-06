@@ -79,10 +79,14 @@ CREATE TABLE IF NOT EXISTS cuentas (
   id           UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   mesa_id      UUID NOT NULL REFERENCES mesas(id) ON DELETE CASCADE,
   estado       estado_cuenta NOT NULL DEFAULT 'abierta',
+  metodo_pago  metodo_pago,
   total        DECIMAL(10, 2) NOT NULL DEFAULT 0,
   abierta_en   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   cerrada_en   TIMESTAMPTZ
 );
+
+ALTER TABLE cuentas
+  ADD COLUMN IF NOT EXISTS metodo_pago metodo_pago;
 
 CREATE INDEX IF NOT EXISTS idx_cuentas_mesa_estado ON cuentas(mesa_id, estado);
 

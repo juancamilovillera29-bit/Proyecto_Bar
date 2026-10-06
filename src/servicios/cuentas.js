@@ -73,13 +73,21 @@ export async function actualizarTotalCuenta(id, total) {
   return data;
 }
 
-export async function marcarCuentaPendientePago(id) {
+export async function marcarCuentaPendientePago(id, metodoPago = 'efectivo') {
   if (!supabaseConfigurado) {
     const cuenta = cuentasMock.find(c => c.id === id);
-    if (cuenta) cuenta.estado = 'pendiente_pago';
+    if (cuenta) {
+      cuenta.estado = 'pendiente_pago';
+      cuenta.metodo_pago = metodoPago;
+    }
     return cuenta;
   }
-  const { data, error } = await supabase.from('cuentas').update({ estado: 'pendiente_pago' }).eq('id', id).select().single();
+  const { data, error } = await supabase
+    .from('cuentas')
+    .update({ estado: 'pendiente_pago', metodo_pago: metodoPago })
+    .eq('id', id)
+    .select()
+    .single();
   if (error) throw error;
   return data;
 }
